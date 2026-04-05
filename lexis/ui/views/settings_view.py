@@ -38,13 +38,6 @@ class SettingsSection(QWidget):
 
         container = QFrame()
         container.setObjectName("card")
-        container.setStyleSheet(f"""
-            QFrame#card {{
-                background: {Colors.BG_SURFACE};
-                border-radius: 14px;
-                border: 1px solid {Colors.BORDER_SUBTLE};
-            }}
-        """)
         self._inner = QVBoxLayout(container)
         self._inner.setContentsMargins(24, 20, 24, 22)
         self._inner.setSpacing(16)

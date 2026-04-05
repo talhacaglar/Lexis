@@ -224,7 +224,7 @@ QStackedWidget {{
 
 /* ── Cards ── */
 QFrame#card {{
-    background-color: {Colors.BG_SURFACE};
+    background-color: transparent;
     border-radius: 14px;
     border: 1px solid {Colors.BORDER_SUBTLE};
 }}
@@ -326,6 +326,7 @@ QPushButton {{
 QPushButton#primaryBtn {{
     background-color: {Colors.ACCENT};
     color: white;
+    border: none;
     font-weight: 600;
     padding: 10px 22px;
 }}
@@ -341,12 +342,15 @@ QPushButton#primaryBtn:pressed {{
 QPushButton#primaryBtn:disabled {{
     background-color: {Colors.BG_ELEVATED};
     color: {Colors.TEXT_MUTED};
+    border: none;
 }}
 
 QPushButton#secondaryBtn {{
     background-color: transparent;
     color: {Colors.TEXT_SECONDARY};
     border: 1px solid {Colors.BORDER};
+    border-radius: 17px;
+    padding: 6px 16px;
 }}
 
 QPushButton#secondaryBtn:hover {{
@@ -359,6 +363,8 @@ QPushButton#dangerBtn {{
     background-color: transparent;
     color: {Colors.ERROR};
     border: 1px solid {Colors.ERROR};
+    border-radius: 17px;
+    padding: 6px 16px;
 }}
 
 QPushButton#dangerBtn:hover {{
@@ -399,9 +405,9 @@ QPushButton#filterChip {{
     background-color: {Colors.BG_ELEVATED};
     color: {Colors.TEXT_SECONDARY};
     border: 1px solid {Colors.BORDER};
-    border-radius: 20px;
-    padding: 5px 14px;
-    font-size: 12px;
+    border-radius: 14px;
+    padding: 6px 14px;
+    font-size: 13px;
     font-weight: 500;
 }}
 
@@ -409,11 +415,13 @@ QPushButton#filterChip[active="true"] {{
     background-color: {Colors.ACCENT_MUTED};
     color: {Colors.ACCENT_LIGHT};
     border: 1px solid {Colors.ACCENT};
+    border-radius: 14px;
 }}
 
 QPushButton#filterChip:hover {{
     border: 1px solid {Colors.ACCENT};
     color: {Colors.TEXT_PRIMARY};
+    border-radius: 14px;
 }}
 
 QPushButton#quickAddBtn {{

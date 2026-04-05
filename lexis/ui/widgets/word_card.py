@@ -30,6 +30,7 @@ class WordCard(QFrame):
 
     clicked = pyqtSignal(str)          # word_id
     favorite_toggled = pyqtSignal(str) # word_id
+    delete_requested = pyqtSignal(str) # word_id
 
     def __init__(self, word: Word, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -166,6 +167,31 @@ class WordCard(QFrame):
     def leaveEvent(self, event) -> None:
         self.setStyleSheet("")
         super().leaveEvent(event)
+
+    def contextMenuEvent(self, event) -> None:
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {Colors.BG_SURFACE};
+                color: {Colors.TEXT_PRIMARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                padding: 6px 24px 6px 12px;
+                border-radius: 4px;
+            }}
+            QMenu::item:selected {{
+                background-color: {Colors.ERROR};
+                color: white;
+            }}
+        """)
+        del_action = menu.addAction("Sil")
+        action = menu.exec(event.globalPos())
+        if action == del_action:
+            self.delete_requested.emit(self._word.id)
 
     @property
     def word_id(self) -> str:
