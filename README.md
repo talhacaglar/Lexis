@@ -1,30 +1,4 @@
-<div align="center">
-  <h1>
-    <a href="https://github.com/talhacaglar/lexis">📚 Lexis</a>
-  </h1>
-
-  <p>
-    <strong>
-      <a href="https://github.com/talhacaglar/lexis">
-        Yapay Zeka Destekli, Modern ve Kişiselleştirilmiş Sözlük Uygulaması
-      </a>
-    </strong>
-  </p>
-  
-  <p>
-    <a href="https://www.python.org/">
-      <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"/>
-    </a>
-
-    <a href="https://www.riverbankcomputing.com/software/pyqt/">
-      <img src="https://img.shields.io/badge/PyQt6-UI_Framework-green?style=flat-square&logo=qt" alt="PyQt6"/>
-    </a>
-
-    <a href="https://aur.archlinux.org/packages/lexis-git">
-      <img src="https://img.shields.io/badge/AUR-lexis--git-1793d1?style=flat-square&logo=arch-linux" alt="AUR Package"/>
-    </a>
-  </p>
-</div>
+<div align="center"> <h1>📚 Lexis</h1> <p><strong>Yapay Zeka Destekli, Modern ve Kişiselleştirilmiş Sözlük Uygulaması</strong></p> <p> <a href="https://github.com/talhacaglar/lexis/blob/main/LICENSE"> <img src="https://img.shields.io/github/license/talhacaglar/lexis?color=7C6EE8&style=flat-square" alt="License"/> </a> <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"/> <img src="https://img.shields.io/badge/PyQt6-UI_Framework-green?style=flat-square&logo=qt" alt="PyQt6"/> <img src="https://img.shields.io/badge/AUR-lexis--git-1793d1?style=flat-square&logo=arch-linux" alt="AUR Package"/> </p> </div>
 
 <br>
 
