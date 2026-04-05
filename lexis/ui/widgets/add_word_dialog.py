@@ -67,6 +67,29 @@ class AddWordDialog(QDialog):
                 background-color: {Colors.BG_SURFACE};
                 border-radius: 16px;
             }}
+            QPushButton#secondaryBtn {{
+                background: transparent;
+                color: {Colors.TEXT_SECONDARY};
+                border: 1px solid {Colors.BORDER};
+                border-radius: 10px;
+                font-size: 13px;
+            }}
+            QPushButton#secondaryBtn:hover {{
+                background: {Colors.BG_HOVER};
+                color: {Colors.TEXT_PRIMARY};
+                border: 1px solid {Colors.BORDER_FOCUS};
+            }}
+            QPushButton#primaryBtn {{
+                background: {Colors.ACCENT};
+                color: white;
+                border-radius: 10px;
+                font-weight: 600;
+                font-size: 13px;
+            }}
+            QPushButton#primaryBtn:disabled {{
+                background: {Colors.BG_ELEVATED};
+                color: {Colors.TEXT_MUTED};
+            }}
         """)
 
         root = QVBoxLayout(self)
@@ -292,7 +315,7 @@ class AddWordDialog(QDialog):
         self._save_btn.setEnabled(True)
         self._generate_btn.setEnabled(True)
         self._status_label.setText("✓ İçerik üretildi")
-        self._status_label.setStyleSheet(f"color: {Colors.SUCCESS}; font-size: 12px;")
+        self._status_label.setStyleSheet(f"color: {Colors.STATUS_LEARNED}; font-size: 12px; font-weight: 600;")
 
     def _on_ai_error(self, message: str) -> None:
         self._loading.hide_loading()

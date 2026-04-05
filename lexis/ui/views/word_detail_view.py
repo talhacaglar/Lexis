@@ -439,10 +439,13 @@ class WordDetailView(QWidget):
         self._clear_layout(self._examples_container)
         for i, ex in enumerate(w.example_sentences, 1):
             ex_widget = QWidget()
+            ex_widget.setObjectName("exampleCard")
             ex_widget.setStyleSheet(f"""
-                background: {Colors.BG_SURFACE};
-                border-radius: 10px;
-                border: 1px solid {Colors.BORDER_SUBTLE};
+                QWidget#exampleCard {{
+                    background: {Colors.BG_SURFACE};
+                    border-radius: 10px;
+                    border: 1px solid {Colors.BORDER_SUBTLE};
+                }}
             """)
             ex_layout = QHBoxLayout(ex_widget)
             ex_layout.setContentsMargins(16, 12, 16, 12)
@@ -454,10 +457,12 @@ class WordDetailView(QWidget):
                 font-weight: 700;
                 font-size: 14px;
                 min-width: 20px;
+                background: transparent;
+                border: none;
             """)
 
             text_layout = QVBoxLayout()
-            text_layout.setSpacing(4)
+            text_layout.setSpacing(10)
             text_layout.setContentsMargins(0, 0, 0, 0)
             
             parts = ex.split('\n', 1)

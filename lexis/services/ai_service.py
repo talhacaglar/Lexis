@@ -113,7 +113,7 @@ class AIService:
                     foreign = ex.get("foreign", "")
                     turkish = ex.get("turkish", "")
                     if foreign and turkish:
-                        examples_formatted.append(f"{foreign}\nTürkçesi: {turkish}")
+                        examples_formatted.append(f"{foreign}\n{turkish}")
                     elif foreign:
                         examples_formatted.append(foreign)
                 else:
