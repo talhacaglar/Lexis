@@ -146,8 +146,10 @@ class SettingsView(QWidget):
         active_theme = get_settings().app_theme
         if active_theme == "light":
             self._light_btn.setObjectName("primaryBtn")
+            self._light_btn.setStyleSheet(f"background-color: {Colors.ACCENT}; color: white; border: none;")
         else:
             self._dark_btn.setObjectName("primaryBtn")
+            self._dark_btn.setStyleSheet(f"background-color: {Colors.ACCENT}; color: white; border: none;")
 
         appearance_section.add_layout(theme_row)
         layout.addWidget(appearance_section)

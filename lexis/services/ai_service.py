@@ -47,7 +47,7 @@ Lütfen aşağıdaki bilgileri üret:
 3. part_of_speech: Sözcük türü Türkçe olarak (İsim, Fiil, Sıfat, Zarf vs.)
 4. synonyms: 3-5 adet {lang_name} eş anlamlı kelime.
 5. antonyms: 2-4 adet {lang_name} zıt anlamlı kelime.
-6. example_sentences: DİKKAT: Tam olarak 3 adet {lang_name} örnek cümle. Bu 3 cümlenin HER BİRİ JSON dizisinin (array) ayrı bir elemanı (string) olmalıdır. Ayrıca her string değerinin içinde, önce yabancı cümle yer almalı, ardından "\\n" (alt satır) konulmalı ve altına Türkçe çevirisi yazılmalıdır. ÖRNEK FORMAT: ["I love apples.\\nElma severim.", "He is fast.\\nO hızlıdır."]
+6. example_sentences: DİKKAT: Tam olarak 3 adet {lang_name} örnek cümle. Bu 3 cümlenin HER BİRİ JSON dizisinin (array) içinde ayrı bir OBJE (object) olmalıdır. Objenin iki alanı olmalıdır: "foreign" (yabancı cümle) ve "turkish" (Türkçe çevirisi). ÖRNEK: [{{"foreign": "I love apples.", "turkish": "Elma severim."}}]
 7. usage_notes: Türkçe kullanım notu.
 
 Yanıtını JSON formatında ver."""
@@ -106,6 +106,19 @@ class AIService:
             )
             data = json.loads(response.text)
 
+            examples_raw = data.get("example_sentences", [])
+            examples_formatted = []
+            for ex in examples_raw:
+                if isinstance(ex, dict):
+                    foreign = ex.get("foreign", "")
+                    turkish = ex.get("turkish", "")
+                    if foreign and turkish:
+                        examples_formatted.append(f"{foreign}\nTürkçesi: {turkish}")
+                    elif foreign:
+                        examples_formatted.append(foreign)
+                else:
+                    examples_formatted.append(str(ex))
+
             # Eksik alanları varsayılanlarla doldur
             return {
                 "definition": data.get("definition", ""),
@@ -113,7 +126,7 @@ class AIService:
                 "part_of_speech": data.get("part_of_speech", ""),
                 "synonyms": data.get("synonyms", []),
                 "antonyms": data.get("antonyms", []),
-                "example_sentences": data.get("example_sentences", []),
+                "example_sentences": examples_formatted,
                 "usage_notes": data.get("usage_notes", ""),
             }
         except json.JSONDecodeError as e:

@@ -154,12 +154,12 @@ class WordCard(QFrame):
         super().mousePressEvent(event)
 
     def enterEvent(self, event: QEnterEvent) -> None:
-        self.setStyleSheet("""
-            QFrame#card {
-                background-color: #1A1D36;
+        self.setStyleSheet(f"""
+            QFrame#card {{
+                background-color: {Colors.BG_ELEVATED};
                 border-radius: 14px;
-                border: 1px solid #7C6EE8;
-            }
+                border: 1px solid {Colors.BORDER_FOCUS};
+            }}
         """)
         super().enterEvent(event)
 

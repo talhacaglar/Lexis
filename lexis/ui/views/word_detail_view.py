@@ -416,7 +416,7 @@ class WordDetailView(QWidget):
         # Synonyms
         self._clear_layout(self._synonyms_row)
         for syn in w.synonyms[:8]:
-            chip = self._make_chip(syn, Colors.STATUS_NEW, Colors.ACCENT_LIGHT)
+            chip = self._make_chip(syn, Colors.ACCENT_MUTED, Colors.ACCENT)
             self._synonyms_row.addWidget(chip)
         if not w.synonyms:
             lbl = QLabel("—")
@@ -425,8 +425,10 @@ class WordDetailView(QWidget):
 
         # Antonyms
         self._clear_layout(self._antonyms_row)
+        from lexis.ui.theme import get_status_style
         for ant in w.antonyms[:6]:
-            chip = self._make_chip(ant, "#3A0F0F", Colors.ERROR)
+            bg, fg = get_status_style("needs_review")
+            chip = self._make_chip(ant, bg, fg)
             self._antonyms_row.addWidget(chip)
         if not w.antonyms:
             lbl = QLabel("—")
