@@ -91,6 +91,7 @@ Anahtar yalnızca yerel ortamınızda saklanır.
 
 ## 📸 Ekran Görüntüleri
 
+<img width="1618" height="917" alt="image" src="https://github.com/user-attachments/assets/e9c8f180-a8ec-4bed-9f37-d751030b535b" />
 <img width="1908" height="1044" alt="Lexis screenshot 1" src="https://github.com/user-attachments/assets/40040253-f286-4f39-af2d-529d046b2a3f" />
 <img width="1908" height="1044" alt="Lexis screenshot 2" src="https://github.com/user-attachments/assets/86088142-e4cc-4a05-aac4-5da7f3713b89" />
 <img width="1600" height="875" alt="Lexis screenshot 3" src="https://github.com/user-attachments/assets/00c6c47a-8d64-4efe-822f-0cf08722517c" />
