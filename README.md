@@ -3,8 +3,8 @@
   <p><strong>Yapay Zeka Destekli, Modern ve Kişiselleştirilmiş Sözlük Uygulaması</strong></p>
   
   <p>
-    <a href="https://github.com/KULLANICI_ADINIZ/lexis/blob/main/LICENSE">
-      <img src="https://img.shields.io/github/license/KULLANICI_ADINIZ/lexis?color=7C6EE8&style=flat-square" alt="License"/>
+    <a href="https://github.com/talhacaglar/lexis/blob/main/LICENSE">
+      <img src="https://img.shields.io/github/license/talhacaglar/lexis?color=7C6EE8&style=flat-square" alt="License"/>
     </a>
     <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"/>
     <img src="https://img.shields.io/badge/PyQt6-UI_Framework-green?style=flat-square&logo=qt" alt="PyQt6"/>
@@ -50,7 +50,7 @@ Sisteminize Python yükledikten sonra terminalden sırasıyla:
 
 ```bash
 # Repoyu bilgisayarınıza indirin
-git clone https://github.com/KULLANICI_ADINIZ/lexis.git
+git clone https://github.com/talhacaglar/lexis.git
 cd lexis
 
 # Sanal ortam (virtual environment) oluşturup aktif edin
