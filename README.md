@@ -71,11 +71,10 @@ Uygulamayı indirdikten sonra, AI özelliklerinin çalışabilmesi için bir **G
 3. API anahtarınızı yapıştırıp Kaydet tuşuna basın. (Anahtar sadece lokalinizdeki `.env` dosyasına kaydedilecektir.)
 
 ## 📸 Ekran Görüntüleri 
-*(Gelecekte buraya uygulamanın ekran görüntülerini ekleyebilirsiniz.)*
-<!-- 
-![Karanlık Mod Dashboard](./docs/dark_dashboard.png)
-![Aydınlık Mod Kelime Kartı](./docs/light_word.png)
--->
+<img width="1908" height="1044" alt="image" src="https://github.com/user-attachments/assets/40040253-f286-4f39-af2d-529d046b2a3f" />
+<img width="1908" height="1044" alt="image" src="https://github.com/user-attachments/assets/86088142-e4cc-4a05-aac4-5da7f3713b89" />
+<img width="1600" height="875" alt="image" src="https://github.com/user-attachments/assets/00c6c47a-8d64-4efe-822f-0cf08722517c" />
+
 
 ## 📝 Lisans
 Bu proje **MIT Lisansı** altında açık kaynak olarak paylaşılmıştır. Dilediğiniz gibi kullanabilir, değiştirebilir ve dağıtabilirsiniz. Detaylar için `LICENSE` dosyasına göz atabilirsiniz.
