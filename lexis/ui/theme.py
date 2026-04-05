@@ -406,9 +406,11 @@ QPushButton#filterChip {{
     color: {Colors.TEXT_SECONDARY};
     border: 1px solid {Colors.BORDER};
     border-radius: 14px;
-    padding: 6px 14px;
+    padding: 4px 14px;
     font-size: 13px;
     font-weight: 500;
+    min-height: 28px;
+    max-height: 28px;
 }}
 
 QPushButton#filterChip[active="true"] {{
