@@ -81,7 +81,8 @@ class AddWordDialog(QDialog):
             }}
             QPushButton#primaryBtn {{
                 background: {Colors.ACCENT};
-                color: white;
+                color: {Colors.TEXT_PRIMARY};
+                border: none;
                 border-radius: 10px;
                 font-weight: 600;
                 font-size: 13px;
@@ -89,6 +90,7 @@ class AddWordDialog(QDialog):
             QPushButton#primaryBtn:disabled {{
                 background: {Colors.BG_ELEVATED};
                 color: {Colors.TEXT_MUTED};
+                border: none;
             }}
         """)
 
@@ -332,14 +334,16 @@ class AddWordDialog(QDialog):
         self._pos_input.setText(data.get("part_of_speech", ""))
         self._synonyms_input.setText(", ".join(data.get("synonyms", [])))
         self._antonyms_input.setText(", ".join(data.get("antonyms", [])))
-        self._examples_input.setPlainText("\n".join(data.get("example_sentences", [])))
+        self._examples_input.setPlainText("\n\n".join(data.get("example_sentences", [])))
         self._usage_notes.setPlainText(data.get("usage_notes", ""))
 
     def _collect_ai_data(self) -> dict:
         """Formdan güncel AI verisini toplar."""
         synonyms = [s.strip() for s in self._synonyms_input.text().split(",") if s.strip()]
         antonyms = [a.strip() for a in self._antonyms_input.text().split(",") if a.strip()]
-        examples = [e.strip() for e in self._examples_input.toPlainText().splitlines() if e.strip()]
+        examples_text = self._examples_input.toPlainText().strip()
+        import re
+        examples = [e.strip() for e in re.split(r'\n\s*\n', examples_text) if e.strip()]
 
         return {
             "definition": self._definition.toPlainText().strip(),
