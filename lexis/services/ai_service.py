@@ -108,6 +108,8 @@ class AIService:
 
             examples_raw = data.get("example_sentences", [])
             examples_formatted = []
+            flat_strings = []
+
             for ex in examples_raw:
                 if isinstance(ex, dict):
                     foreign = ex.get("foreign", "")
@@ -117,7 +119,18 @@ class AIService:
                     elif foreign:
                         examples_formatted.append(foreign)
                 else:
-                    examples_formatted.append(str(ex))
+                    s = str(ex).strip()
+                    if "\n" in s:
+                        examples_formatted.append(s)
+                    else:
+                        flat_strings.append(s)
+
+            if not examples_formatted and flat_strings:
+                if len(flat_strings) % 2 == 0 and len(flat_strings) >= 4:
+                    for i in range(0, len(flat_strings), 2):
+                        examples_formatted.append(f"{flat_strings[i]}\n{flat_strings[i+1]}")
+                else:
+                    examples_formatted = flat_strings
 
             # Eksik alanları varsayılanlarla doldur
             return {

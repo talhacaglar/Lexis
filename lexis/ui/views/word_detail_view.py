@@ -442,13 +442,12 @@ class WordDetailView(QWidget):
             ex_widget.setObjectName("exampleCard")
             ex_widget.setStyleSheet(f"""
                 QWidget#exampleCard {{
-                    background: {Colors.BG_SURFACE};
-                    border-radius: 10px;
-                    border: 1px solid {Colors.BORDER_SUBTLE};
+                    background: transparent;
+                    border: none;
                 }}
             """)
             ex_layout = QHBoxLayout(ex_widget)
-            ex_layout.setContentsMargins(16, 12, 16, 12)
+            ex_layout.setContentsMargins(0, 12, 0, 12)
             ex_layout.setSpacing(12)
 
             num = QLabel(str(i))
