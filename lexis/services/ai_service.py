@@ -40,15 +40,15 @@ def _build_prompt(term: str, language: str) -> str:
 
 Verilen kelime: "{term}" ({lang_name})
 
-Lütfen aşağıdaki bilgileri Türkçe olarak üret:
+Lütfen aşağıdaki bilgileri üret:
 
-1. definition: Kelimenin ayrıntılı Türkçe tanımı (2-4 cümle). Kelimenin tüm nüanslarını açıkla.
+1. definition: Kelimenin ayrıntılı Türkçe tanımı (2-4 cümle).
 2. definition_short: Tek cümlelik kısa Türkçe tanım.
-3. part_of_speech: Sözcük türü Türkçe olarak (İsim, Fiil, Sıfat, Zarf, Zamir, vb.)
-4. synonyms: 3-5 adet {lang_name} eş anlamlı kelime listesi
-5. antonyms: 2-4 adet {lang_name} zıt anlamlı kelime listesi (varsa)
-6. example_sentences: 3 adet {lang_name} örnek cümle. Her cümle doğal ve gerçekçi olsun.
-7. usage_notes: Türkçe kullanım notu. Kelimenin kullanıldığı bağlamlar, dikkat edilmesi gerekenler, günlük hayat vs. gibi pratik bilgiler.
+3. part_of_speech: Sözcük türü Türkçe olarak (İsim, Fiil, Sıfat, Zarf vs.)
+4. synonyms: 3-5 adet {lang_name} eş anlamlı kelime.
+5. antonyms: 2-4 adet {lang_name} zıt anlamlı kelime.
+6. example_sentences: DİKKAT: Tam olarak 3 adet {lang_name} örnek cümle. Bu 3 cümlenin HER BİRİ JSON dizisinin (array) ayrı bir elemanı (string) olmalıdır. Ayrıca her string değerinin içinde, önce yabancı cümle yer almalı, ardından "\\n" (alt satır) konulmalı ve altına Türkçe çevirisi yazılmalıdır. ÖRNEK FORMAT: ["I love apples.\\nElma severim.", "He is fast.\\nO hızlıdır."]
+7. usage_notes: Türkçe kullanım notu.
 
 Yanıtını JSON formatında ver."""
 

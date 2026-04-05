@@ -1,180 +1,81 @@
-# Lexis — Kişisel Sözlük & Kelime Öğrenme Uygulaması
+<div align="center">
+  <h1>📚 Lexis</h1>
+  <p><strong>Yapay Zeka Destekli, Modern ve Kişiselleştirilmiş Sözlük Uygulaması</strong></p>
+  
+  <p>
+    <a href="https://github.com/KULLANICI_ADINIZ/lexis/blob/main/LICENSE">
+      <img src="https://img.shields.io/github/license/KULLANICI_ADINIZ/lexis?color=7C6EE8&style=flat-square" alt="License"/>
+    </a>
+    <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"/>
+    <img src="https://img.shields.io/badge/PyQt6-UI_Framework-green?style=flat-square&logo=qt" alt="PyQt6"/>
+    <img src="https://img.shields.io/badge/AUR-lexis--git-1793d1?style=flat-square&logo=arch-linux" alt="AUR Package"/>
+  </p>
+</div>
 
-> Yabancı dil öğrenenler için yapay zeka destekli, tam bağımsız, modern masaüstü sözlük uygulaması.
+<br>
 
----
+**Lexis**, yabancı dil öğrenenler ve sözcük dağarcığını geliştirmek isteyenler için tasarlanmış bağımsız (self-hosted) ve hafif bir masaüstü uygulamasıdır. Google'ın yeni nesil **Gemini AI** altyapısını kullanarak girdiğiniz herhangi bir kelimenin türünü, detaylı tanımını, örnek cümlelerini, eş/zıt anlamlılarını ve kullanım notlarını saniyeler içinde otomatik olarak üretir.
+
+Tüm verileriniz yerel bilgisayarınızda SQLite formatında güvende tutulur; başka hiçbir bulut servisine, aboneliğe veya webhook akışına ihtiyacınız yoktur! ✨
 
 ## ✨ Özellikler
 
-- **Yapay Zeka Destekli İçerik** — Gemini ile anlam, eş/zıt anlamlılar, örnek cümleler, kullanım notu üretimi
-- **Kişisel Sözlük** — Tüm kelimeler yerel SQLite veritabanında saklanır, internet gerekmez
-- **Öğrenme Durumu Takibi** — Yeni / Öğreniyorum / Öğrendim / Tekrar Gerek
-- **Etiketleme & Filtreleme** — Dilediğiniz gibi kategorize edin
-- **Favoriler** — Önemli kelimeleri işaretleyin
-- **Arama** — Anlık arama ve çok boyutlu filtreleme
-- **İçe/Dışa Aktarma** — JSON & CSV desteği
-- **14 Dil Desteği** — İngilizce, Almanca, Fransızca, İspanyolca ve daha fazlası
-- **Türkçe Arayüz** — Tamamen Türkçe kullanıcı deneyimi
+- 🤖 **Yapay Zeka ile Otomatik İçerik:** Kelimeyi girin, gerisini Gemini AI'a bırakın. Kelimenin bağlamsal tanımından Türkçe çevirisine dek her şey otomatik oluşsun.
+- 🌓 **Aydınlık & Karanlık Mod:** Tek bir tıklamayle sisteminize en uygun ve göz yormayan modern arayüze geçiş yapın. (Anında "Hot-Reload" ile)
+- 🔒 **%100 Yerel Veri (Local-First):** Kelimeleriniz kendi cihazınızdaki `~/.lexis/lexis.db` SQLite veritabanında yaşar.
+- 🏷️ **Etiket & Öğrenme Durumu Yönetimi:** Kelimelere özel etiketler atayın, *Yeni, Öğreniliyor, Öğrenildi* gibi durum etiketleriyle kelimeleri filtreleyin.
+- 📥 **İçe / Dışa Aktarma (Export/Import):** Saniyeler içinde tüm sözlüğünüzü CSV ve JSON formatında yedekleyin veya başka cihazlara aktarın.
+- ⚡ **Asenkron Mimari:** PyQt6 ve QThread bazlı altyapı sayesinde API'den cevap beklerken dahi arayüz kesinlikle donmaz.
 
----
+## 🛠 Kullanılan Teknolojiler
 
-## 🚀 Kurulum
+- **Dil:** Python 3.10+
+- **Arayüz (GUI):** PyQt6
+- **Veritabanı:** SQLite (SQLModel & SQLAlchemy üzerinden ORM)
+- **AI Entegrasyonu:** `google-genai` (Resmi ve Güncel Google SDK)
+- **Konfigürasyon:** `pydantic-settings` (Tip-güvenli `.env` yönetimi)
 
-### Gereksinimler
+## 🚀 Kurulum & Çalıştırma
 
-- Python 3.10 veya üzeri
-- pip veya uv paket yöneticisi
+### 1- Arch Linux / Manjaro Kullanıcıları (AUR Üzerinden En Kolay Yol)
+Eğer Arch tabanlı bir sistem kullanıyorsanız, programı hiçbir bağımlılıkla uğraşmadan tek bir komutla makinenize kurabilirsiniz:
+```bash
+yay -S lexis-git
+```
+*Veya sisteminizde paket derleyicisi olarak paru varsa: `paru -S lexis-git`*
 
-### 1. Repoyu Klonlayın
+### 2- Kaynak Koddan Çalıştırma (Tüm Linux, macOS, Windows Sistemler)
+
+Sisteminize Python yükledikten sonra terminalden sırasıyla:
 
 ```bash
-git clone https://github.com/kullanici/lexis.git
+# Repoyu bilgisayarınıza indirin
+git clone https://github.com/KULLANICI_ADINIZ/lexis.git
 cd lexis
-```
 
-### 2. Sanal Ortam Oluşturun
-
-```bash
+# Sanal ortam (virtual environment) oluşturup aktif edin
 python -m venv .venv
-source .venv/bin/activate   # bash/zsh
-source .venv/bin/activate.fish  # fish
-# .venv\Scripts\activate    # Windows
-```
+source .venv/bin/activate  # (Windows için: .venv\Scripts\activate)
 
-### 3. Bağımlılıkları Kurun
-
-```bash
+# Bağımlılıkları yükleyin
 pip install -e .
-# Geliştirici bağımlılıkları için:
-pip install -e ".[dev]"
-```
 
-### 4. API Anahtarını Yapılandırın
-
-```bash
-cp .env.example .env
-nvim .env
-# GEMINI_API_KEY değerini girin
-```
-
-Veya uygulamayı başlattıktan sonra **Ayarlar** ekranından API anahtarınızı girebilirsiniz.
-
-> **API Anahtarı nereden alınır?**
-> [Google AI Studio](https://aistudio.google.com/app/apikey) adresinden ücretsiz olarak alabilirsiniz.
-
-### 5. Uygulamayı Başlatın
-
-```bash
+# Uygulamayı başlatın
 lexis
-# veya:
-python -m lexis.main
-# veya aktivasyon olmadan:
-./.venv/bin/lexis
 ```
 
----
+## ⚙️ Yapılandırma 
+Uygulamayı indirdikten sonra, AI özelliklerinin çalışabilmesi için bir **Gemini API Anahtarına** ihtiyacınız vardır. (Google üzerinden almak **ücretsizdir**.)
+1. [Google AI Studio](https://aistudio.google.com/app/apikey) adresinden bedava API anahtarınızı oluşturun.
+2. Lexis uygulamasını açın -> Sol menüden `Ayarlar` diyin.
+3. API anahtarınızı yapıştırıp Kaydet tuşuna basın. (Anahtar sadece lokalinizdeki `.env` dosyasına kaydedilecektir.)
 
-## 📁 Proje Yapısı
+## 📸 Ekran Görüntüleri 
+*(Gelecekte buraya uygulamanın ekran görüntülerini ekleyebilirsiniz.)*
+<!-- 
+![Karanlık Mod Dashboard](./docs/dark_dashboard.png)
+![Aydınlık Mod Kelime Kartı](./docs/light_word.png)
+-->
 
-```
-lexis/
-├── pyproject.toml              # Proje konfigürasyonu
-├── .env.example                # Örnek environment dosyası
-├── README.md
-│
-├── lexis/                      # Ana Python paketi
-│   ├── main.py                 # Entry point
-│   │
-│   ├── config/
-│   │   └── settings.py         # pydantic-settings konfigürasyonu
-│   │
-│   ├── domain/                 # Framework bağımsız iş modelleri
-│   │   ├── models.py           # Word, WordStatus, WordStats
-│   │   └── exceptions.py       # Domain hataları
-│   │
-│   ├── persistence/            # Veri erişim katmanı
-│   │   ├── database.py         # SQLite bağlantısı
-│   │   └── word_repository.py  # CRUD işlemleri
-│   │
-│   ├── services/               # Uygulama/iş mantığı katmanı
-│   │   ├── ai_service.py       # Gemini API wrapper
-│   │   ├── word_service.py     # Kelime yönetim servisi
-│   │   └── export_service.py   # Import/Export
-│   │
-│   ├── workers/
-│   │   └── ai_worker.py        # QThread AI worker
-│   │
-│   └── ui/                     # GUI katmanı (PyQt6)
-│       ├── theme.py            # Renk sistemi & QSS stylesheet
-│       ├── app.py              # Uygulama bootstrap
-│       ├── windows/
-│       │   └── main_window.py  # Ana pencere
-│       ├── views/
-│       │   ├── dashboard_view.py
-│       │   ├── library_view.py
-│       │   ├── word_detail_view.py
-│       │   └── settings_view.py
-│       └── widgets/
-│           ├── word_card.py
-│           ├── add_word_dialog.py
-│           ├── loading_overlay.py
-│           └── tag_badge.py
-│
-└── tests/
-    ├── conftest.py
-    ├── test_repositories.py
-    └── test_word_service.py
-```
-
----
-
-## 🧪 Testleri Çalıştırma
-
-```bash
-pytest tests/ -v
-```
-
----
-
-## 🗄 Veritabanı Konumu
-
-Varsayılan olarak veritabanı `~/.lexis/lexis.db` konumunda oluşturulur.
-`.env` dosyasında `DATABASE_PATH` değişkeniyle değiştirebilirsiniz.
-
----
-
-## 📤 Import / Export
-
-- **Dışa Aktar**: Ayarlar ekranından JSON veya CSV olarak tüm kelimeleri dışa aktarın.
-- **İçe Aktar**: Daha önce aktardığınız dosyayı geri yükleyin. Mevcut kelimeler atlanır.
-
----
-
-## ⚙️ Konfigürasyon
-
-| Değişken | Açıklama | Varsayılan |
-|---|---|---|
-| `GEMINI_API_KEY` | Google Gemini API anahtarı | — |
-| `DATABASE_PATH` | Veritabanı dosya yolu | `~/.lexis/lexis.db` |
-| `LOG_LEVEL` | Loglama seviyesi | `INFO` |
-
----
-
-## 🛠 Geliştirme
-
-```bash
-# Bağımlılıkları kur
-pip install -e ".[dev]"
-
-# Testleri çalıştır
-pytest tests/ -v
-
-# Uygulamayı başlat
-python -m lexis.main
-```
-
----
-
-## 📄 Lisans
-
-MIT
+## 📝 Lisans
+Bu proje **MIT Lisansı** altında açık kaynak olarak paylaşılmıştır. Dilediğiniz gibi kullanabilir, değiştirebilir ve dağıtabilirsiniz. Detaylar için `LICENSE` dosyasına göz atabilirsiniz.

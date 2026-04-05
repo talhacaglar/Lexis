@@ -1,16 +1,16 @@
 # Maintainer: Adınız <email@adresiniz.com>
 pkgname=lexis-git
-pkgver=r1.gabcdef
+pkgver=r1.gf406063
 pkgrel=1
 pkgdesc="Yabancı dil öğrenenler için yapay zeka destekli, modern masaüstü sözlük uygulaması"
 arch=('x86_64' 'aarch64')
-url="https://github.com/kullanici/lexis"
+url="https://github.com/talhacaglar/Lexis"
 license=('MIT')
 depends=('glibc' 'zlib' 'libx11' 'libxcb' 'libxkbcommon' 'fontconfig' 'freetype2' 'dbus')
 makedepends=('git' 'python' 'python-pip' 'python-setuptools')
 provides=("${pkgname%-git}")
 conflicts=("${pkgname%-git}")
-source=("lexis::git+file:///home/clar/Downloads/lexis"
+source=("lexis::git+https://github.com/talhacaglar/lexis.git"
         "lexis.desktop")
 md5sums=('SKIP'
          'SKIP')

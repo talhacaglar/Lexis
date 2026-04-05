@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from lexis.config.settings import get_settings, save_api_key
+from lexis.config.settings import get_settings, save_api_key, save_theme
 from lexis.services.export_service import ExportService
 from lexis.services.word_service import WordService
 from lexis.ui.theme import Colors
@@ -75,6 +75,7 @@ class SettingsView(QWidget):
     """Ayarlar ekranı."""
 
     settings_changed = pyqtSignal()
+    theme_changed = pyqtSignal(str)
 
     def __init__(
         self,
@@ -119,6 +120,37 @@ class SettingsView(QWidget):
         layout = QVBoxLayout(content)
         layout.setContentsMargins(36, 12, 36, 48)
         layout.setSpacing(20)
+
+        # ── Appearance Section ──
+        appearance_section = SettingsSection("🎨  Görünüm")
+        app_desc = QLabel("Uygulama temasını seçin.")
+        app_desc.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: 13px;")
+        appearance_section.add_widget(app_desc)
+
+        theme_row = QHBoxLayout()
+        theme_row.setSpacing(10)
+        
+        self._dark_btn = QPushButton("Karanlık Tema")
+        self._dark_btn.setObjectName("secondaryBtn")
+        self._dark_btn.setMinimumHeight(44)
+        self._dark_btn.clicked.connect(lambda: self._trigger_theme_change("dark"))
+        theme_row.addWidget(self._dark_btn)
+
+        self._light_btn = QPushButton("Aydınlık Tema")
+        self._light_btn.setObjectName("secondaryBtn")
+        self._light_btn.setMinimumHeight(44)
+        self._light_btn.clicked.connect(lambda: self._trigger_theme_change("light"))
+        theme_row.addWidget(self._light_btn)
+        theme_row.addStretch()
+
+        active_theme = get_settings().app_theme
+        if active_theme == "light":
+            self._light_btn.setObjectName("primaryBtn")
+        else:
+            self._dark_btn.setObjectName("primaryBtn")
+
+        appearance_section.add_layout(theme_row)
+        layout.addWidget(appearance_section)
 
         # ── API Key Section ──
         api_section = SettingsSection("🔑  Gemini API Anahtarı")
@@ -349,3 +381,7 @@ class SettingsView(QWidget):
             except Exception as e:
                 self._import_status.setText(f"Hata: {e}")
                 self._import_status.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
+
+    def _trigger_theme_change(self, theme_name: str) -> None:
+        save_theme(theme_name)
+        self.theme_changed.emit(theme_name)

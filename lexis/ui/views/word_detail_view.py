@@ -454,16 +454,35 @@ class WordDetailView(QWidget):
                 min-width: 20px;
             """)
 
-            text = QLabel(ex)
-            text.setWordWrap(True)
-            text.setStyleSheet(f"""
-                color: {Colors.TEXT_SECONDARY};
+            text_layout = QVBoxLayout()
+            text_layout.setSpacing(4)
+            text_layout.setContentsMargins(0, 0, 0, 0)
+            
+            parts = ex.split('\n', 1)
+            
+            foreign_lbl = QLabel(parts[0].strip())
+            foreign_lbl.setWordWrap(True)
+            foreign_lbl.setStyleSheet(f"""
+                color: {Colors.TEXT_PRIMARY};
                 font-size: 14px;
-                line-height: 1.6;
+                font-weight: 500;
+                line-height: 1.5;
             """)
+            text_layout.addWidget(foreign_lbl)
+            
+            if len(parts) > 1 and parts[1].strip():
+                tr_lbl = QLabel(parts[1].strip())
+                tr_lbl.setWordWrap(True)
+                tr_lbl.setStyleSheet(f"""
+                    color: {Colors.TEXT_MUTED};
+                    font-size: 13px;
+                    font-style: italic;
+                    line-height: 1.4;
+                """)
+                text_layout.addWidget(tr_lbl)
 
-            ex_layout.addWidget(num)
-            ex_layout.addWidget(text, 1)
+            ex_layout.addWidget(num, 0, Qt.AlignmentFlag.AlignTop)
+            ex_layout.addLayout(text_layout, 1)
             self._examples_container.addWidget(ex_widget)
 
         # Usage notes

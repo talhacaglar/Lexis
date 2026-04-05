@@ -74,15 +74,38 @@ def run() -> int:
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
 
-    # Tema
+    # Tema varsayılanını yükle
+    theme_name = get_settings().app_theme
+    from lexis.ui.theme import set_theme
+    set_theme(theme_name)
     apply_theme(app)
 
     # Servisler
     word_service, export_service = create_services()
 
     # Ana pencere
-    window = MainWindow(word_service=word_service, export_service=export_service)
-    window.show()
+    # Python GC'nin temizlememesi için window referansını app'e takıyoruz
+    app._main_window = MainWindow(word_service=word_service, export_service=export_service)
+    
+    def on_theme_changed(new_theme: str) -> None:
+        logger.info("Tema değiştiriliyor: %s", new_theme)
+        set_theme(new_theme)
+        apply_theme(app)
+        
+        # Yeni pencere oluştur ve Ayarlar sayfasını aç
+        new_window = MainWindow(word_service=word_service, export_service=export_service)
+        # Settings sayfasının indexi 3 (PAGE_SETTINGS)
+        new_window._navigate_to(3) 
+        new_window.show()
+        
+        old_window = app._main_window
+        app._main_window = new_window
+        app._main_window._settings.theme_changed.connect(on_theme_changed)
+        old_window.close()
+        old_window.deleteLater()
+
+    app._main_window._settings.theme_changed.connect(on_theme_changed)
+    app._main_window.show()
 
     logger.info("Lexis hazır.")
     return app.exec()
