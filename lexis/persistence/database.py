@@ -6,16 +6,15 @@ SQLite veritabanı bağlantısı ve tablo oluşturma işlemleri.
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 CREATE_WORDS_TABLE = """
 CREATE TABLE IF NOT EXISTS words (
@@ -36,9 +35,21 @@ CREATE TABLE IF NOT EXISTS words (
     created_at        TEXT NOT NULL,
     updated_at        TEXT NOT NULL,
     last_reviewed_at  TEXT,
-    review_count      INTEGER NOT NULL DEFAULT 0
+    review_count      INTEGER NOT NULL DEFAULT 0,
+    ease_factor       REAL NOT NULL DEFAULT 2.5,
+    interval_days     INTEGER NOT NULL DEFAULT 0,
+    repetitions       INTEGER NOT NULL DEFAULT 0,
+    due_at            TEXT
 );
 """
+
+# v1 → v2 ile eklenen sütunlar (mevcut veritabanları için ALTER TABLE migration).
+WORDS_COLUMN_MIGRATIONS: dict[str, str] = {
+    "ease_factor": "REAL NOT NULL DEFAULT 2.5",
+    "interval_days": "INTEGER NOT NULL DEFAULT 0",
+    "repetitions": "INTEGER NOT NULL DEFAULT 0",
+    "due_at": "TEXT",
+}
 
 CREATE_SETTINGS_TABLE = """
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -53,6 +64,7 @@ CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_words_status ON words(status);",
     "CREATE INDEX IF NOT EXISTS idx_words_created_at ON words(created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_words_is_favorite ON words(is_favorite);",
+    "CREATE INDEX IF NOT EXISTS idx_words_due_at ON words(due_at);",
 ]
 
 CREATE_SCHEMA_VERSION = """
@@ -76,10 +88,14 @@ class Database:
             conn.execute(CREATE_SCHEMA_VERSION)
             conn.execute(CREATE_WORDS_TABLE)
             conn.execute(CREATE_SETTINGS_TABLE)
+
+            # Mevcut (eski) veritabanlarına yeni sütunları ekle.
+            self._migrate_columns(conn)
+
             for index_sql in CREATE_INDEXES:
                 conn.execute(index_sql)
 
-            # Schema version kaydet
+            # Schema version kaydet / güncelle
             current = conn.execute(
                 "SELECT version FROM schema_version LIMIT 1"
             ).fetchone()
@@ -88,8 +104,22 @@ class Database:
                     "INSERT INTO schema_version (version) VALUES (?)",
                     (SCHEMA_VERSION,),
                 )
+            elif current["version"] != SCHEMA_VERSION:
+                conn.execute("DELETE FROM schema_version")
+                conn.execute(
+                    "INSERT INTO schema_version (version) VALUES (?)",
+                    (SCHEMA_VERSION,),
+                )
             conn.commit()
         logger.info("Veritabanı hazır.")
+
+    def _migrate_columns(self, conn: sqlite3.Connection) -> None:
+        """words tablosunda eksik olan sütunları ekler (idempotent)."""
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(words)")}
+        for column, definition in WORDS_COLUMN_MIGRATIONS.items():
+            if column not in existing:
+                logger.info("Migration: words.%s sütunu ekleniyor", column)
+                conn.execute(f"ALTER TABLE words ADD COLUMN {column} {definition}")
 
     @contextmanager
     def connection(self) -> Generator[sqlite3.Connection, None, None]:

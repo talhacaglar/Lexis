@@ -12,7 +12,12 @@ from lexis.services.ai_service import AIService
 
 
 class AIGenerationWorker(QThread):
-    """AI içerik üretimini arka planda çalıştıran QThread worker."""
+    """
+    AI içerik üretimini arka planda çalıştıran QThread worker.
+
+    Hem yeni kelime ekleme hem de mevcut kelimenin içeriğini yenileme için
+    kullanılır.
+    """
 
     # Başarılı tamamlanma: üretilen veri dict
     finished = pyqtSignal(dict)
@@ -43,27 +48,5 @@ class AIGenerationWorker(QThread):
             self.error.emit(str(e))
 
 
-class AIRegenerateWorker(QThread):
-    """Mevcut kelime için AI içeriğini yenileyen worker."""
-
-    finished = pyqtSignal(dict)
-    error = pyqtSignal(str)
-
-    def __init__(
-        self,
-        ai_service: AIService,
-        term: str,
-        language: str,
-        parent=None,
-    ) -> None:
-        super().__init__(parent)
-        self._ai_service = ai_service
-        self._term = term
-        self._language = language
-
-    def run(self) -> None:
-        try:
-            data = self._ai_service.generate_word_data(self._term, self._language)
-            self.finished.emit(data)
-        except Exception as e:
-            self.error.emit(str(e))
+# Geriye dönük uyumluluk için takma ad (eski içe aktarmalar çalışmaya devam eder).
+AIRegenerateWorker = AIGenerationWorker

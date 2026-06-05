@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -16,13 +16,13 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
 from lexis.domain.models import Word, WordStats
 from lexis.services.word_service import WordService
+from lexis.ui.icons import colored_icon
 from lexis.ui.theme import Colors
 from lexis.ui.widgets.word_card import WordCard
 
@@ -76,6 +76,7 @@ class DashboardView(QWidget):
     open_add_dialog = pyqtSignal()
     word_clicked = pyqtSignal(str)     # word_id
     favorite_toggled = pyqtSignal(str) # word_id
+    start_practice = pyqtSignal()
 
     def __init__(self, word_service: WordService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -124,6 +125,15 @@ class DashboardView(QWidget):
         header_col.addWidget(self._greeting_label)
         header_col.addWidget(self._date_label)
         header_row.addLayout(header_col, 1)
+
+        self._practice_btn = QPushButton("  Çalış")
+        self._practice_btn.setObjectName("secondaryBtn")
+        self._practice_btn.setIcon(colored_icon("cards", Colors.TEXT_SECONDARY, 16))
+        self._practice_btn.setIconSize(QSize(16, 16))
+        self._practice_btn.setMinimumHeight(42)
+        self._practice_btn.setMinimumWidth(120)
+        self._practice_btn.clicked.connect(self.start_practice)
+        header_row.addWidget(self._practice_btn, 0)
 
         add_btn = QPushButton("+ Kelime Ekle")
         add_btn.setObjectName("primaryBtn")
@@ -194,6 +204,14 @@ class DashboardView(QWidget):
         self._refresh_words(words)
 
     def _refresh_stats(self, stats: WordStats) -> None:
+        # Çalış butonunu güncelle (kaç kelime tekrar bekliyor)
+        if stats.due_today > 0:
+            self._practice_btn.setText(f"  Çalış ({stats.due_today})")
+            self._practice_btn.setEnabled(True)
+        else:
+            self._practice_btn.setText("  Çalış")
+            self._practice_btn.setEnabled(stats.total > 0)
+
         # Eski stat kartlarını temizle
         while self._stats_layout.count():
             item = self._stats_layout.takeAt(0)
@@ -202,9 +220,9 @@ class DashboardView(QWidget):
 
         cards = [
             (str(stats.total), "Toplam Kelime", Colors.ACCENT_LIGHT),
+            (str(stats.due_today), "Bugün Tekrar", Colors.STATUS_REVIEW),
             (str(stats.learning), "Öğreniyorum", Colors.WARNING),
             (str(stats.learned), "Öğrendim", Colors.SUCCESS),
-            (str(stats.added_today), "Bugün Eklendi", Colors.INFO),
             (str(stats.favorites), "Favori", Colors.FAVORITE),
         ]
         for val, lbl, color in cards:

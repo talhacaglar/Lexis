@@ -6,9 +6,6 @@ Tüm renk, tipografi ve QSS stylesheet tanımları bu modülde merkezileştirilm
 
 from __future__ import annotations
 
-from PyQt6.QtGui import QFont, QFontDatabase
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Renk Paleti Altyapısı
 # ─────────────────────────────────────────────────────────────────────────────
@@ -28,6 +25,11 @@ class PaletteClass:
     ACCENT_HOVER: str
     ACCENT_MUTED: str
     ACCENT_LIGHT: str
+
+    # Birincil aksiyon butonu (tema bazlı: koyu temada beyaz, açıkta vurgu rengi)
+    BTN_BG: str
+    BTN_BG_HOVER: str
+    BTN_TEXT: str
 
     TEXT_PRIMARY: str
     TEXT_SECONDARY: str
@@ -56,66 +58,75 @@ class PaletteClass:
 
 Colors = PaletteClass()
 
+# Minimalist, nötr (navy tonu olmayan) yakın-siyah karanlık tema.
+# Tek vurgu rengi (violet), saç teli (hairline) kenarlıklar, yumuşatılmış durum tonları.
 DARK_THEME = {
-    "BG_BASE":       "#0B0D17",
-    "BG_SURFACE":    "#13162A",
-    "BG_ELEVATED":   "#1A1D36",
-    "BG_HOVER":      "#222640",
-    "BG_PRESSED":    "#1C1F38",
-    "BORDER":        "#252842",
-    "BORDER_FOCUS":  "#7C6EE8",
-    "BORDER_SUBTLE": "#1E213A",
-    "ACCENT":        "#7C6EE8",
-    "ACCENT_HOVER":  "#9485F5",
-    "ACCENT_MUTED":  "#2A2756",
-    "ACCENT_LIGHT":  "#B4ABFF",
-    "TEXT_PRIMARY":   "#E8EAFF",
-    "TEXT_SECONDARY": "#8B8FA8",
-    "TEXT_MUTED":     "#4A4D66",
-    "TEXT_INVERSE":   "#0B0D17",
-    "STATUS_NEW":     "#7C6EE8",
-    "STATUS_LEARNING":"#F59E0B",
-    "STATUS_LEARNED": "#4ADE80",
-    "STATUS_REVIEW":  "#EF4444",
-    "SUCCESS":        "#4ADE80",
-    "WARNING":        "#F59E0B",
-    "ERROR":          "#EF4444",
-    "INFO":           "#60A5FA",
-    "FAVORITE":       "#FF6B9D",
-    "SCROLLBAR_BG":   "#13162A",
-    "SCROLLBAR_HANDLE":"#252842",
-    "SCROLLBAR_HOVER":"#7C6EE8",
+    "BG_BASE":       "#000000",  # saf siyah
+    "BG_SURFACE":    "#0B0B0B",  # sidebar / kartlar (siyahtan ince ayrışma)
+    "BG_ELEVATED":   "#151515",  # inputlar / hover yüzeyleri
+    "BG_HOVER":      "#1E1E1E",
+    "BG_PRESSED":    "#181818",
+    "BORDER":        "#2A2A2A",
+    "BORDER_FOCUS":  "#6E6E6E",
+    "BORDER_SUBTLE": "#191919",
+    "ACCENT":        "#FFFFFF",   # monokrom: vurgular beyaz/gri
+    "ACCENT_HOVER":  "#D8D8D8",
+    "ACCENT_MUTED":  "#1C1C1C",   # aktif/badge için nötr gri yüzey
+    "ACCENT_LIGHT":  "#FFFFFF",   # aktif metin / logo / rozet metni
+    "BTN_BG":        "#FFFFFF",   # beyaz birincil buton
+    "BTN_BG_HOVER":  "#E2E2E2",
+    "BTN_TEXT":      "#000000",
+    "TEXT_PRIMARY":   "#ECECEE",
+    "TEXT_SECONDARY": "#9A9AA4",
+    "TEXT_MUTED":     "#5A5A62",
+    "TEXT_INVERSE":   "#000000",
+    "STATUS_NEW":     "#C6C6CC",
+    "STATUS_LEARNING":"#E8B25E",
+    "STATUS_LEARNED": "#5FD08A",
+    "STATUS_REVIEW":  "#F07A75",
+    "SUCCESS":        "#5FD08A",
+    "WARNING":        "#E8B25E",
+    "ERROR":          "#F07A75",
+    "INFO":           "#6FA8FF",
+    "FAVORITE":       "#FF8FB0",
+    "SCROLLBAR_BG":   "#111113",
+    "SCROLLBAR_HANDLE":"#2D2D32",
+    "SCROLLBAR_HOVER":"#45454D",
 }
 
+# Temiz, beyaz tabanlı minimalist aydınlık tema.
 LIGHT_THEME = {
-    "BG_BASE":       "#F3F4F6", # gray-100
-    "BG_SURFACE":    "#FFFFFF", # white
-    "BG_ELEVATED":   "#F9FAFB", # gray-50
-    "BG_HOVER":      "#E5E7EB", # gray-200
-    "BG_PRESSED":    "#D1D5DB", # gray-300
-    "BORDER":        "#E5E7EB", # gray-200
-    "BORDER_FOCUS":  "#6366F1", # indigo-500
-    "BORDER_SUBTLE": "#F3F4F6", # gray-100
-    "ACCENT":        "#6366F1", # indigo-500
-    "ACCENT_HOVER":  "#4F46E5", # indigo-600
-    "ACCENT_MUTED":  "#EEF2FF", # indigo-50
-    "ACCENT_LIGHT":  "#4F46E5", # indigo-600
-    "TEXT_PRIMARY":   "#111827", # gray-900
-    "TEXT_SECONDARY": "#4B5563", # gray-600
-    "TEXT_MUTED":     "#9CA3AF", # gray-400
-    "TEXT_INVERSE":   "#FFFFFF", # white
-    "STATUS_NEW":     "#6366F1",
-    "STATUS_LEARNING":"#D97706", # amber-600
-    "STATUS_LEARNED": "#16A34A", # green-600
-    "STATUS_REVIEW":  "#DC2626", # red-600
-    "SUCCESS":        "#22C55E",
-    "WARNING":        "#F59E0B",
-    "ERROR":          "#EF4444",
+    "BG_BASE":       "#F7F7F8",
+    "BG_SURFACE":    "#FFFFFF",
+    "BG_ELEVATED":   "#FFFFFF",
+    "BG_HOVER":      "#F0F0F2",
+    "BG_PRESSED":    "#E7E7EA",
+    "BORDER":        "#E6E6E9",
+    "BORDER_FOCUS":  "#6D5EF0",
+    "BORDER_SUBTLE": "#EEEEF0",
+    "ACCENT":        "#6D5EF0",
+    "ACCENT_HOVER":  "#5A49E8",
+    "ACCENT_MUTED":  "#EFEDFD",
+    "ACCENT_LIGHT":  "#5A49E8",
+    "BTN_BG":        "#6D5EF0",  # açık temada birincil buton vurgu rengi
+    "BTN_BG_HOVER":  "#5A49E8",
+    "BTN_TEXT":      "#FFFFFF",
+    "TEXT_PRIMARY":   "#18181B",
+    "TEXT_SECONDARY": "#55555F",
+    "TEXT_MUTED":     "#9B9BA6",
+    "TEXT_INVERSE":   "#FFFFFF",
+    "STATUS_NEW":     "#6D5EF0",
+    "STATUS_LEARNING":"#C8821C",
+    "STATUS_LEARNED": "#1B9E55",
+    "STATUS_REVIEW":  "#DD5752",
+    "SUCCESS":        "#1B9E55",
+    "WARNING":        "#C8821C",
+    "ERROR":          "#DD5752",
     "INFO":           "#3B82F6",
-    "FAVORITE":       "#EC4899",
-    "SCROLLBAR_BG":   "#F9FAFB",
-    "SCROLLBAR_HANDLE":"#D1D5DB",
-    "SCROLLBAR_HOVER":"#9CA3AF",
+    "FAVORITE":       "#E85C92",
+    "SCROLLBAR_BG":   "#F0F0F2",
+    "SCROLLBAR_HANDLE":"#D7D7DC",
+    "SCROLLBAR_HOVER":"#BEBEC6",
 }
 
 _current_theme = "dark"
@@ -196,7 +207,8 @@ QPushButton#navBtn {{
     background-color: transparent;
     color: {Colors.TEXT_SECONDARY};
     border-radius: 10px;
-    padding: 10px 14px;
+    border-left: 2px solid transparent;
+    padding: 11px 14px 11px 14px;
     text-align: left;
     font-size: 13px;
     font-weight: 500;
@@ -210,6 +222,7 @@ QPushButton#navBtn:hover {{
 QPushButton#navBtn[active="true"] {{
     background-color: {Colors.ACCENT_MUTED};
     color: {Colors.ACCENT_LIGHT};
+    border-left: 2px solid {Colors.ACCENT};
     font-weight: 600;
 }}
 
@@ -224,8 +237,8 @@ QStackedWidget {{
 
 /* ── Cards ── */
 QFrame#card {{
-    background-color: transparent;
-    border-radius: 14px;
+    background-color: {Colors.BG_SURFACE};
+    border-radius: 16px;
     border: 1px solid {Colors.BORDER_SUBTLE};
 }}
 
@@ -235,8 +248,8 @@ QFrame#card:hover {{
 }}
 
 QFrame#statCard {{
-    background-color: {Colors.BG_ELEVATED};
-    border-radius: 12px;
+    background-color: {Colors.BG_SURFACE};
+    border-radius: 16px;
     border: 1px solid {Colors.BORDER_SUBTLE};
 }}
 
@@ -245,8 +258,8 @@ QLineEdit, QTextEdit, QPlainTextEdit {{
     background-color: {Colors.BG_ELEVATED};
     color: {Colors.TEXT_PRIMARY};
     border: 1px solid {Colors.BORDER};
-    border-radius: 10px;
-    padding: 10px 14px;
+    border-radius: 12px;
+    padding: 11px 15px;
     font-size: 14px;
     selection-background-color: {Colors.ACCENT_MUTED};
 }}
@@ -317,26 +330,26 @@ QComboBox QAbstractItemView {{
 
 /* ── Buttons ── */
 QPushButton {{
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 9px 18px;
     font-size: 13px;
     font-weight: 500;
 }}
 
 QPushButton#primaryBtn {{
-    background-color: {Colors.ACCENT};
-    color: white;
+    background-color: {Colors.BTN_BG};
+    color: {Colors.BTN_TEXT};
     border: none;
     font-weight: 600;
     padding: 10px 22px;
 }}
 
 QPushButton#primaryBtn:hover {{
-    background-color: {Colors.ACCENT_HOVER};
+    background-color: {Colors.BTN_BG_HOVER};
 }}
 
 QPushButton#primaryBtn:pressed {{
-    background-color: {Colors.ACCENT_MUTED};
+    background-color: {Colors.BTN_BG_HOVER};
 }}
 
 QPushButton#primaryBtn:disabled {{
@@ -427,8 +440,8 @@ QPushButton#filterChip:hover {{
 }}
 
 QPushButton#quickAddBtn {{
-    background-color: {Colors.ACCENT};
-    color: white;
+    background-color: {Colors.BTN_BG};
+    color: {Colors.BTN_TEXT};
     font-size: 20px;
     font-weight: 300;
     border-radius: 14px;
@@ -440,7 +453,7 @@ QPushButton#quickAddBtn {{
 }}
 
 QPushButton#quickAddBtn:hover {{
-    background-color: {Colors.ACCENT_HOVER};
+    background-color: {Colors.BTN_BG_HOVER};
 }}
 
 /* ── Labels ── */
@@ -545,8 +558,8 @@ QMessageBox {{
 }}
 
 QMessageBox QPushButton {{
-    background-color: {Colors.ACCENT};
-    color: white;
+    background-color: {Colors.BTN_BG};
+    color: {Colors.BTN_TEXT};
     min-width: 80px;
     padding: 8px 16px;
 }}
@@ -593,16 +606,16 @@ def get_status_style(status: str) -> tuple[str, str]:
     if _current_theme == "dark":
         color_map = {
             "new":          (Colors.ACCENT_MUTED, Colors.ACCENT_LIGHT),
-            "learning":     ("#3A2E0F", "#F59E0B"),
-            "learned":      ("#0F3020", "#4ADE80"),
-            "needs_review": ("#3A0F0F", "#EF4444"),
+            "learning":     ("#2A2210", Colors.STATUS_LEARNING),
+            "learned":      ("#13271C", Colors.STATUS_LEARNED),
+            "needs_review": ("#2C1716", Colors.STATUS_REVIEW),
         }
     else:
         color_map = {
             "new":          (Colors.ACCENT_MUTED, Colors.ACCENT_LIGHT),
-            "learning":     ("#FEF3C7", "#D97706"), # amber-50, amber-600
-            "learned":      ("#DCFCE7", "#16A34A"), # green-50, green-600
-            "needs_review": ("#FEE2E2", "#DC2626"), # red-50, red-600
+            "learning":     ("#FBF1DC", Colors.STATUS_LEARNING),
+            "learned":      ("#E0F3E8", Colors.STATUS_LEARNED),
+            "needs_review": ("#FBE7E6", Colors.STATUS_REVIEW),
         }
     return color_map.get(status, (Colors.BG_ELEVATED, Colors.TEXT_SECONDARY))
 

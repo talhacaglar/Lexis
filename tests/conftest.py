@@ -2,8 +2,9 @@
 Lexis — Test Fixtures (conftest.py)
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from lexis.domain.models import Word, WordStatus
 from lexis.persistence.database import Database

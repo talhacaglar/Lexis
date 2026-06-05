@@ -14,7 +14,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 
-from lexis.config.settings import get_settings
+from lexis.config.settings import bind_database, get_settings
 from lexis.persistence.database import Database
 from lexis.persistence.word_repository import WordRepository
 from lexis.services.ai_service import AIService
@@ -37,8 +37,12 @@ def create_services() -> tuple[WordService, ExportService]:
     """Bağımlılık ağacını kurarak servis nesnelerini oluşturur."""
     settings = get_settings()
     db = Database(settings.db_path)
-    repo = WordRepository(db)
 
+    # Kalıcı tercihleri (API anahtarı, tema) DB'den yükle.
+    bind_database(db)
+    settings = get_settings()
+
+    repo = WordRepository(db)
     ai = AIService(api_key=settings.gemini_api_key if settings.has_api_key else None)
 
     word_service = WordService(repository=repo, ai_service=ai)
@@ -74,37 +78,43 @@ def run() -> int:
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
 
-    # Tema varsayılanını yükle
+    # Servisler (DB'yi de bağlar; kalıcı tercihler buradan sonra okunabilir)
+    word_service, export_service = create_services()
+
+    # Tema tercihini (DB'den) yükle ve uygula
     theme_name = get_settings().app_theme
     from lexis.ui.theme import set_theme
     set_theme(theme_name)
     apply_theme(app)
 
-    # Servisler
-    word_service, export_service = create_services()
+    def build_main_window() -> MainWindow:
+        """Yeni MainWindow oluşturur ve tema değişimi sinyalini bağlar."""
+        window = MainWindow(word_service=word_service, export_service=export_service)
+        window._settings.theme_changed.connect(on_theme_changed)
+        return window
 
-    # Ana pencere
-    # Python GC'nin temizlememesi için window referansını app'e takıyoruz
-    app._main_window = MainWindow(word_service=word_service, export_service=export_service)
-    
     def on_theme_changed(new_theme: str) -> None:
+        # Tema renkleri widget'lara inşa anında gömüldüğü için canlı yeniden
+        # boyama yerine pencere yeniden kurulur. Aktif sayfa ve geometri korunur.
         logger.info("Tema değiştiriliyor: %s", new_theme)
         set_theme(new_theme)
         apply_theme(app)
-        
-        # Yeni pencere oluştur ve Ayarlar sayfasını aç
-        new_window = MainWindow(word_service=word_service, export_service=export_service)
-        # Settings sayfasının indexi 3 (PAGE_SETTINGS)
-        new_window._navigate_to(3) 
-        new_window.show()
-        
+
         old_window = app._main_window
+        active_page = old_window.current_page()
+        geometry = old_window.saveGeometry()
+
+        new_window = build_main_window()
+        new_window.restoreGeometry(geometry)
+        new_window.navigate_to(active_page)
+        new_window.show()
+
         app._main_window = new_window
-        app._main_window._settings.theme_changed.connect(on_theme_changed)
         old_window.close()
         old_window.deleteLater()
 
-    app._main_window._settings.theme_changed.connect(on_theme_changed)
+    # Python GC'nin temizlememesi için window referansını app'e takıyoruz
+    app._main_window = build_main_window()
     app._main_window.show()
 
     logger.info("Lexis hazır.")

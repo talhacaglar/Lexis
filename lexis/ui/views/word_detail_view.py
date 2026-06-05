@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -24,7 +23,7 @@ from lexis.services.word_service import WordService
 from lexis.ui.theme import Colors, get_status_badge_style
 from lexis.ui.widgets.loading_overlay import LoadingOverlay
 from lexis.ui.widgets.tag_badge import TagBadge
-from lexis.workers.ai_worker import AIRegenerateWorker
+from lexis.workers.ai_worker import AIGenerationWorker
 
 
 class Divider(QFrame):
@@ -49,7 +48,7 @@ class WordDetailView(QWidget):
         super().__init__(parent)
         self._service = word_service
         self._word: Word | None = None
-        self._ai_worker: AIRegenerateWorker | None = None
+        self._ai_worker: AIGenerationWorker | None = None
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -363,7 +362,7 @@ class WordDetailView(QWidget):
             word = self._service.get_by_id(word_id)
             self._word = word
             self._render_word()
-        except Exception as e:
+        except Exception:
             pass
 
     def _render_word(self) -> None:
@@ -440,11 +439,11 @@ class WordDetailView(QWidget):
         for i, ex in enumerate(w.example_sentences, 1):
             ex_widget = QWidget()
             ex_widget.setObjectName("exampleCard")
-            ex_widget.setStyleSheet(f"""
-                QWidget#exampleCard {{
+            ex_widget.setStyleSheet("""
+                QWidget#exampleCard {
                     background: transparent;
                     border: none;
-                }}
+                }
             """)
             ex_layout = QHBoxLayout(ex_widget)
             ex_layout.setContentsMargins(0, 12, 0, 12)
@@ -463,9 +462,9 @@ class WordDetailView(QWidget):
             text_layout = QVBoxLayout()
             text_layout.setSpacing(10)
             text_layout.setContentsMargins(0, 0, 0, 0)
-            
+
             parts = ex.split('\n', 1)
-            
+
             foreign_lbl = QLabel(parts[0].strip())
             foreign_lbl.setWordWrap(True)
             foreign_lbl.setStyleSheet(f"""
@@ -475,7 +474,7 @@ class WordDetailView(QWidget):
                 line-height: 1.5;
             """)
             text_layout.addWidget(foreign_lbl)
-            
+
             if len(parts) > 1 and parts[1].strip():
                 tr_lbl = QLabel(parts[1].strip())
                 tr_lbl.setWordWrap(True)
@@ -584,7 +583,7 @@ class WordDetailView(QWidget):
         self._loading.show_loading(f"'{self._word.term}' için içerik yenileniyor...")
         self._regen_btn.setEnabled(False)
 
-        self._ai_worker = AIRegenerateWorker(
+        self._ai_worker = AIGenerationWorker(
             self._service._ai,
             self._word.term,
             self._word.language,

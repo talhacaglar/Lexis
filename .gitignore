@@ -1,50 +1,36 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Lexis specific
-*.db
-*.db-shm
-*.db-wal
-lexis_exports/
-
-# Testing
+.eggs/
+build/
+dist/
 .pytest_cache/
-.coverage
-htmlcov/
+.ruff_cache/
+.mypy_cache/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+# Virtual env
+.venv/
+venv/
+
+# Local config / secrets
+.env
+
+# Lexis local data
+*.db
+*.db-wal
+*.db-shm
+
+# Packaging artifacts
+packaging/*.AppImage
+packaging/AppDir/
+
+# AUR / makepkg build çıktıları (repoda tutulmamalı)
+packaging/aur/pkg/
+packaging/aur/src/
+packaging/aur/lexis/
+packaging/aur/*.pkg.tar.zst
+
+# OS / editor
 .DS_Store
+*.swp

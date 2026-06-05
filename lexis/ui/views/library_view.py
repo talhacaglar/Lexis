@@ -16,13 +16,11 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from lexis.domain.models import Word, WordStatus
-from lexis.domain.models import SUPPORTED_LANGUAGES
+from lexis.domain.models import SUPPORTED_LANGUAGES, Word, WordStatus
 from lexis.services.word_service import WordService
 from lexis.ui.theme import Colors
 from lexis.ui.widgets.word_card import WordCard

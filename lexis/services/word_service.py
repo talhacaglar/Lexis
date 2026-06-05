@@ -8,10 +8,9 @@ Repository ve AI servisini koordine eder.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from lexis.domain.exceptions import DuplicateWordError
-from lexis.domain.models import Word, WordStats, WordStatus
+from lexis.domain.models import ReviewGrade, Word, WordStats, WordStatus
 from lexis.persistence.word_repository import WordRepository
 from lexis.services.ai_service import AIService
 
@@ -31,7 +30,7 @@ class WordService:
         self,
         search: str = "",
         language: str = "",
-        status: Optional[WordStatus] = None,
+        status: WordStatus | None = None,
         favorites_only: bool = False,
         tag: str = "",
         sort_by: str = "created_at",
@@ -56,6 +55,10 @@ class WordService:
     def get_recently_reviewed(self, limit: int = 6) -> list[Word]:
         return self._repo.get_recently_reviewed(limit=limit)
 
+    def get_due_words(self, limit: int = 0) -> list[Word]:
+        """Tekrar zamanı gelmiş kelimeleri (çalışma kuyruğu) döndürür."""
+        return self._repo.get_due(limit=limit)
+
     def get_stats(self) -> WordStats:
         return self._repo.get_stats()
 
@@ -68,7 +71,7 @@ class WordService:
         self,
         term: str,
         language: str = "en",
-        ai_data: Optional[dict] = None,
+        ai_data: dict | None = None,
     ) -> Word:
         """
         Yeni kelime ekler.
@@ -118,6 +121,15 @@ class WordService:
         word = self._repo.get_by_id(word_id)
         word.status = status
         word.mark_reviewed()
+        return self._repo.update(word)
+
+    def review_word(self, word_id: str, grade: ReviewGrade) -> Word:
+        """
+        Bir tekrar oturumunda kullanıcının değerlendirmesini uygular.
+        SM-2 ile sonraki tekrar tarihini hesaplar ve kaydeder.
+        """
+        word = self._repo.get_by_id(word_id)
+        word.apply_review(grade)
         return self._repo.update(word)
 
     def add_tag(self, word_id: str, tag: str) -> Word:

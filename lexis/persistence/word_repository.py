@@ -9,10 +9,9 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
-from typing import Optional
 
 from lexis.domain.exceptions import DatabaseError, WordNotFoundError
-from lexis.domain.models import Word, WordStats, WordStatus
+from lexis.domain.models import Word, WordStats, WordStatus, utcnow
 from lexis.persistence.database import Database
 
 logger = logging.getLogger(__name__)
@@ -43,6 +42,10 @@ def _row_to_word(row) -> Word:
             else None
         ),
         review_count=row["review_count"],
+        ease_factor=row["ease_factor"],
+        interval_days=row["interval_days"],
+        repetitions=row["repetitions"],
+        due_at=datetime.fromisoformat(row["due_at"]) if row["due_at"] else None,
     )
 
 
@@ -69,6 +72,10 @@ def _word_to_params(word: Word) -> dict:
             word.last_reviewed_at.isoformat() if word.last_reviewed_at else None
         ),
         "review_count": word.review_count,
+        "ease_factor": word.ease_factor,
+        "interval_days": word.interval_days,
+        "repetitions": word.repetitions,
+        "due_at": word.due_at.isoformat() if word.due_at else None,
     }
 
 
@@ -91,12 +98,14 @@ class WordRepository:
                         id, term, language, definition, definition_short,
                         synonyms, antonyms, example_sentences, usage_notes,
                         part_of_speech, status, is_favorite, tags, ai_generated,
-                        created_at, updated_at, last_reviewed_at, review_count
+                        created_at, updated_at, last_reviewed_at, review_count,
+                        ease_factor, interval_days, repetitions, due_at
                     ) VALUES (
                         :id, :term, :language, :definition, :definition_short,
                         :synonyms, :antonyms, :example_sentences, :usage_notes,
                         :part_of_speech, :status, :is_favorite, :tags, :ai_generated,
-                        :created_at, :updated_at, :last_reviewed_at, :review_count
+                        :created_at, :updated_at, :last_reviewed_at, :review_count,
+                        :ease_factor, :interval_days, :repetitions, :due_at
                     )
                     """,
                     params,
@@ -123,7 +132,7 @@ class WordRepository:
         self,
         search: str = "",
         language: str = "",
-        status: Optional[WordStatus] = None,
+        status: WordStatus | None = None,
         favorites_only: bool = False,
         tag: str = "",
         sort_by: str = "created_at",
@@ -203,6 +212,26 @@ class WordRepository:
             ).fetchall()
         return [_row_to_word(r) for r in rows]
 
+    def get_due(self, limit: int = 0) -> list[Word]:
+        """
+        Tekrar zamanı gelmiş kelimeleri döndürür (çalışma kuyruğu).
+
+        Hiç çalışılmamış (due_at IS NULL) kelimeler de kuyruğa dahildir;
+        zamanı gelmiş (vadesi geçmiş) kelimeler önce gösterilir.
+        """
+        now = utcnow().isoformat()
+        sql = (
+            "SELECT * FROM words WHERE due_at IS NULL OR due_at <= ? "
+            "ORDER BY (due_at IS NULL) ASC, due_at ASC"
+        )
+        params: list = [now]
+        if limit > 0:
+            sql += " LIMIT ?"
+            params.append(limit)
+        with self._db.connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [_row_to_word(r) for r in rows]
+
     def get_all_tags(self) -> list[str]:
         """Kullanılan tüm benzersiz etiketleri döndürür."""
         with self._db.connection() as conn:
@@ -215,7 +244,7 @@ class WordRepository:
 
     def get_stats(self) -> WordStats:
         """Genel istatistikleri döndürür."""
-        today = datetime.utcnow().date().isoformat()
+        today = utcnow().date().isoformat()
         with self._db.connection() as conn:
             total = conn.execute("SELECT COUNT(*) FROM words").fetchone()[0]
             new = conn.execute(
@@ -241,6 +270,10 @@ class WordRepository:
                 "SELECT COUNT(*) FROM words WHERE last_reviewed_at LIKE ?",
                 (f"{today}%",),
             ).fetchone()[0]
+            due_today = conn.execute(
+                "SELECT COUNT(*) FROM words WHERE due_at IS NULL OR due_at <= ?",
+                (utcnow().isoformat(),),
+            ).fetchone()[0]
 
         return WordStats(
             total=total,
@@ -251,13 +284,14 @@ class WordRepository:
             favorites=favorites,
             added_today=added_today,
             reviewed_today=reviewed_today,
+            due_today=due_today,
         )
 
     # ── Update ────────────────────────────────────────────────────────────
 
     def update(self, word: Word) -> Word:
         """Mevcut kelimeyi günceller."""
-        word.updated_at = datetime.utcnow()
+        word.updated_at = utcnow()
         try:
             params = _word_to_params(word)
             with self._db.connection() as conn:
@@ -279,7 +313,11 @@ class WordRepository:
                         ai_generated = :ai_generated,
                         updated_at = :updated_at,
                         last_reviewed_at = :last_reviewed_at,
-                        review_count = :review_count
+                        review_count = :review_count,
+                        ease_factor = :ease_factor,
+                        interval_days = :interval_days,
+                        repetitions = :repetitions,
+                        due_at = :due_at
                     WHERE id = :id
                     """,
                     params,

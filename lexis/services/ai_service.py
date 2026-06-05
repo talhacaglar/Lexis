@@ -2,36 +2,45 @@
 Lexis — AI Service
 
 Google Gemini API wrapper. Kelime için zengin içerik üretir.
+
+Yanıt yapısı bir pydantic şema ile (`response_schema`) Gemini'ye dayatılır;
+böylece model her zaman aynı alanları ve örnek cümleleri {foreign, turkish}
+formatında döndürür. Şema dışı/eski yanıtlar için hoşgörülü bir ayrıştırıcı
+yedek olarak kalır.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Optional
 
 from google import genai
 from google.genai import types
+from pydantic import BaseModel
 
 from lexis.domain.exceptions import AIServiceError, APIKeyMissingError
 from lexis.domain.models import SUPPORTED_LANGUAGES
 
 logger = logging.getLogger(__name__)
 
-# Gemini'den beklenen JSON şeması
-WORD_DATA_SCHEMA = {
-    "type": "OBJECT",
-    "properties": {
-        "definition": {"type": "STRING"},
-        "definition_short": {"type": "STRING"},
-        "part_of_speech": {"type": "STRING"},
-        "synonyms": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "antonyms": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "example_sentences": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "usage_notes": {"type": "STRING"},
-    },
-    "required": ["definition", "definition_short", "part_of_speech", "synonyms", "antonyms", "example_sentences"],
-}
+DEFAULT_MODEL = "gemini-2.5-flash"
+
+
+class ExampleSentence(BaseModel):
+    """Yabancı dildeki örnek cümle ve Türkçe çevirisi."""
+    foreign: str
+    turkish: str
+
+
+class WordData(BaseModel):
+    """Gemini'nin bir kelime için üreteceği yapısal içerik."""
+    definition: str
+    definition_short: str
+    part_of_speech: str
+    synonyms: list[str]
+    antonyms: list[str]
+    example_sentences: list[ExampleSentence]
+    usage_notes: str = ""
 
 
 def _build_prompt(term: str, language: str) -> str:
@@ -47,17 +56,53 @@ Lütfen aşağıdaki bilgileri üret:
 3. part_of_speech: Sözcük türü Türkçe olarak (İsim, Fiil, Sıfat, Zarf vs.)
 4. synonyms: 3-5 adet {lang_name} eş anlamlı kelime.
 5. antonyms: 2-4 adet {lang_name} zıt anlamlı kelime.
-6. example_sentences: DİKKAT: Tam olarak 3 adet {lang_name} örnek cümle. Bu 3 cümlenin HER BİRİ JSON dizisinin (array) içinde ayrı bir OBJE (object) olmalıdır. Objenin iki alanı olmalıdır: "foreign" (yabancı cümle) ve "turkish" (Türkçe çevirisi). ÖRNEK: [{{"foreign": "I love apples.", "turkish": "Elma severim."}}]
-7. usage_notes: Türkçe kullanım notu.
+6. example_sentences: Tam olarak 3 adet örnek. Her örnek "foreign" ({lang_name} cümle)
+   ve "turkish" (Türkçe çevirisi) alanlarını içermelidir.
+7. usage_notes: Türkçe kısa kullanım notu.
 
-Yanıtını JSON formatında ver."""
+Yanıtını verilen JSON şemasına birebir uyacak şekilde ver."""
+
+
+def _format_examples(raw: object) -> list[str]:
+    """
+    Örnek cümleleri uygulamanın beklediği 'foreign\\nturkish' string listesine
+    dönüştürür. Hem yapısal (dict / pydantic) hem de eski düz-string yanıtlarına
+    karşı toleranslıdır.
+    """
+    formatted: list[str] = []
+    flat: list[str] = []
+
+    for ex in raw or []:
+        if isinstance(ex, ExampleSentence):
+            foreign, turkish = ex.foreign, ex.turkish
+        elif isinstance(ex, dict):
+            foreign, turkish = ex.get("foreign", ""), ex.get("turkish", "")
+        else:
+            s = str(ex).strip()
+            (formatted if "\n" in s else flat).append(s)
+            continue
+
+        if foreign and turkish:
+            formatted.append(f"{foreign}\n{turkish}")
+        elif foreign:
+            formatted.append(foreign)
+
+    # Eski format: düz string'ler çift hâlinde (yabancı, türkçe) gelmiş olabilir.
+    if not formatted and flat:
+        if len(flat) >= 4 and len(flat) % 2 == 0:
+            formatted = [f"{flat[i]}\n{flat[i + 1]}" for i in range(0, len(flat), 2)]
+        else:
+            formatted = flat
+
+    return formatted
 
 
 class AIService:
     """Google Gemini API ile kelime içeriği üretir."""
 
-    def __init__(self, api_key: Optional[str] = None) -> None:
+    def __init__(self, api_key: str | None = None, model: str = DEFAULT_MODEL) -> None:
         self._api_key = api_key
+        self._model = model
         self._client = None
         if api_key:
             self._setup(api_key)
@@ -84,7 +129,8 @@ class AIService:
         Verilen kelime için zengin içerik üretir.
 
         Returns:
-            dict: definition, definition_short, part_of_speech...
+            dict: definition, definition_short, part_of_speech, synonyms,
+            antonyms, example_sentences (list[str]), usage_notes.
 
         Raises:
             APIKeyMissingError: API anahtarı yoksa.
@@ -98,53 +144,35 @@ class AIService:
 
         try:
             response = self._client.models.generate_content(
-                model='gemini-2.5-flash',
+                model=self._model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                )
+                    response_schema=WordData,
+                ),
             )
-            data = json.loads(response.text)
 
-            examples_raw = data.get("example_sentences", [])
-            examples_formatted = []
-            flat_strings = []
+            # Tercihen SDK'nın doğrulanmış nesnesini kullan; yoksa metni ayrıştır.
+            parsed: WordData | None = getattr(response, "parsed", None)
+            if isinstance(parsed, WordData):
+                data = parsed
+            else:
+                data = WordData.model_validate(json.loads(response.text))
 
-            for ex in examples_raw:
-                if isinstance(ex, dict):
-                    foreign = ex.get("foreign", "")
-                    turkish = ex.get("turkish", "")
-                    if foreign and turkish:
-                        examples_formatted.append(f"{foreign}\n{turkish}")
-                    elif foreign:
-                        examples_formatted.append(foreign)
-                else:
-                    s = str(ex).strip()
-                    if "\n" in s:
-                        examples_formatted.append(s)
-                    else:
-                        flat_strings.append(s)
-
-            if not examples_formatted and flat_strings:
-                if len(flat_strings) % 2 == 0 and len(flat_strings) >= 4:
-                    for i in range(0, len(flat_strings), 2):
-                        examples_formatted.append(f"{flat_strings[i]}\n{flat_strings[i+1]}")
-                else:
-                    examples_formatted = flat_strings
-
-            # Eksik alanları varsayılanlarla doldur
             return {
-                "definition": data.get("definition", ""),
-                "definition_short": data.get("definition_short", ""),
-                "part_of_speech": data.get("part_of_speech", ""),
-                "synonyms": data.get("synonyms", []),
-                "antonyms": data.get("antonyms", []),
-                "example_sentences": examples_formatted,
-                "usage_notes": data.get("usage_notes", ""),
+                "definition": data.definition,
+                "definition_short": data.definition_short,
+                "part_of_speech": data.part_of_speech,
+                "synonyms": data.synonyms,
+                "antonyms": data.antonyms,
+                "example_sentences": _format_examples(data.example_sentences),
+                "usage_notes": data.usage_notes,
             }
         except json.JSONDecodeError as e:
             logger.error(f"AI yanıtı JSON parse hatası: {e}")
             raise AIServiceError("AI yanıtı ayrıştırılamadı.", original=e) from e
+        except (APIKeyMissingError, AIServiceError):
+            raise
         except Exception as e:
             logger.error(f"Gemini API hatası: {e}")
             raise AIServiceError(str(e), original=e) from e

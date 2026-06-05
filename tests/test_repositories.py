@@ -3,8 +3,9 @@ Lexis — Tests: Word Repository
 """
 
 import pytest
+
+from lexis.domain.exceptions import WordNotFoundError
 from lexis.domain.models import Word, WordStatus
-from lexis.domain.exceptions import WordNotFoundError, DatabaseError
 from lexis.persistence.word_repository import WordRepository
 
 

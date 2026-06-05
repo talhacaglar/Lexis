@@ -6,7 +6,7 @@ Yeni kelime ekleme ve AI içerik üretimi diyalogu.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -301,7 +300,6 @@ class AddWordDialog(QDialog):
         self._loading.show_loading(f"'{term}' için içerik üretiliyor...")
         self._generate_btn.setEnabled(False)
 
-        from lexis.services.ai_service import AIService
         ai_service = self._service._ai
 
         self._ai_worker = AIGenerationWorker(ai_service, term, lang_code, parent=self)

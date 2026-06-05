@@ -1,18 +1,27 @@
 """
 Lexis — Configuration
 
-pydantic-settings kullanılarak ortam değişkenleri ve .env dosyasından
-tip-güvenli konfigürasyon yükleme.
+Konfigürasyon iki katmanlıdır:
+
+1. Ortam değişkenleri / .env  → ilk varsayılanlar (pydantic-settings).
+2. Veritabanı (app_settings)  → kullanıcının uygulama içinden değiştirdiği
+   kalıcı tercihler (API anahtarı, tema). Bu katman env'i geçersiz kılar.
+
+Eskiden API anahtarı çalışma dizinindeki `.env` dosyasına yazılıyordu; bu,
+uygulama farklı bir dizinden (AppImage/AUR) başlatıldığında tercihlerin
+kaybolmasına yol açıyordu. Artık tercihler `~/.lexis/lexis.db` içinde tutulur.
 """
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if TYPE_CHECKING:
+    from lexis.persistence.database import Database
 
 
 class Settings(BaseSettings):
@@ -25,10 +34,10 @@ class Settings(BaseSettings):
     )
 
     # Gemini API
-    gemini_api_key: Optional[str] = None
+    gemini_api_key: str | None = None
 
     # Veritabanı
-    database_path: Optional[str] = None
+    database_path: str | None = None
 
     # Loglama
     log_level: str = "INFO"
@@ -51,84 +60,79 @@ class Settings(BaseSettings):
         return bool(self.gemini_api_key and self.gemini_api_key.strip())
 
 
-# Singleton settings örneği
-_settings: Optional[Settings] = None
+# ── Kalıcı tercih anahtarları (app_settings tablosu) ──────────────────────
+_KEY_API = "gemini_api_key"
+_KEY_THEME = "app_theme"
+
+# Singleton settings örneği + bağlı veritabanı
+_settings: Settings | None = None
+_db: Database | None = None
+
+
+def _apply_persisted(s: Settings) -> None:
+    """DB'de saklı tercihleri (varsa) settings üzerine uygular."""
+    if _db is None:
+        return
+    stored_key = _db.get_setting(_KEY_API, "")
+    if stored_key:
+        s.gemini_api_key = stored_key
+    stored_theme = _db.get_setting(_KEY_THEME, "")
+    if stored_theme in ("dark", "light"):
+        s.app_theme = stored_theme
 
 
 def get_settings() -> Settings:
-    """Thread-safe singleton settings getter."""
+    """Singleton settings getter (DB tercihleri uygulanmış)."""
     global _settings
     if _settings is None:
         _settings = Settings()
+        _apply_persisted(_settings)
     return _settings
 
 
 def reload_settings() -> Settings:
-    """Ayarları yeniden yükler (API key güncelleme sonrası)."""
+    """Ayarları env'den yeniden yükler ve DB tercihlerini uygular."""
     global _settings
     _settings = Settings()
+    _apply_persisted(_settings)
     return _settings
 
 
+def bind_database(db: Database) -> None:
+    """
+    Settings katmanını veritabanına bağlar. Uygulama açılışında, DB
+    oluşturulduktan hemen sonra çağrılır.
+
+    İlk çalıştırmada env'den (.env) gelen değerler DB'ye taşınır; böylece
+    eski .env tabanlı kurulumlar sorunsuz geçiş yapar.
+    """
+    global _db
+    _db = db
+    s = get_settings()
+
+    # Env'den gelen mevcut değerleri ilk kez DB'ye taşı (migration).
+    if not db.get_setting(_KEY_API, "") and s.has_api_key:
+        db.set_setting(_KEY_API, s.gemini_api_key or "")
+    if not db.get_setting(_KEY_THEME, ""):
+        db.set_setting(_KEY_THEME, s.app_theme)
+
+    _apply_persisted(s)
+
+
 def save_api_key(api_key: str) -> None:
-    """
-    API anahtarını .env dosyasına yazar.
-    Uygulamanın çalıştığı dizinde .env dosyası oluşturur/günceller.
-    """
-    env_path = Path(".env")
-
-    # Mevcut .env içeriğini oku
-    lines: list[str] = []
-    if env_path.exists():
-        with open(env_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-    # GEMINI_API_KEY satırını bul ve güncelle
-    key_found = False
-    new_lines = []
-    for line in lines:
-        if line.startswith("GEMINI_API_KEY="):
-            new_lines.append(f"GEMINI_API_KEY={api_key}\n")
-            key_found = True
-        else:
-            new_lines.append(line)
-
-    if not key_found:
-        new_lines.append(f"\nGEMINI_API_KEY={api_key}\n")
-
-    with open(env_path, "w", encoding="utf-8") as f:
-        f.writelines(new_lines)
-
-    # Ortam değişkenini de güncelle
+    """API anahtarını kalıcı olarak (DB) saklar."""
+    api_key = api_key.strip()
     os.environ["GEMINI_API_KEY"] = api_key
+    if _db is not None:
+        _db.set_setting(_KEY_API, api_key)
     reload_settings()
 
 
 def save_theme(theme_name: str) -> None:
-    """Tema tercihini (dark/light) .env dosyasına yazar."""
-    env_path = Path(".env")
-    lines: list[str] = []
-    if env_path.exists():
-        with open(env_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-    found = False
-    new_lines = []
-    for line in lines:
-        if line.startswith("APP_THEME="):
-            new_lines.append(f"APP_THEME={theme_name}\n")
-            found = True
-        else:
-            new_lines.append(line)
-
-    if not found:
-        # Eğer dosya sonunda \n yoksa ekle
-        if new_lines and not new_lines[-1].endswith("\n"):
-            new_lines[-1] += "\n"
-        new_lines.append(f"APP_THEME={theme_name}\n")
-
-    with open(env_path, "w", encoding="utf-8") as f:
-        f.writelines(new_lines)
-
+    """Tema tercihini (dark/light) kalıcı olarak (DB) saklar."""
+    if theme_name not in ("dark", "light"):
+        theme_name = "dark"
     os.environ["APP_THEME"] = theme_name
+    if _db is not None:
+        _db.set_setting(_KEY_THEME, theme_name)
     reload_settings()

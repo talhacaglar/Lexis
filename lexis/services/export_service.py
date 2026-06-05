@@ -11,8 +11,7 @@ import json
 import logging
 from pathlib import Path
 
-from lexis.domain.exceptions import ExportError
-from lexis.domain.exceptions import ImportError as LexisImportError
+from lexis.domain.exceptions import ExportError, LexisImportError
 from lexis.domain.models import Word
 from lexis.persistence.word_repository import WordRepository
 
@@ -52,7 +51,7 @@ class ExportService:
             (imported_count, skipped_count) tuple
         """
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
 
             words_data = data.get("words", data) if isinstance(data, dict) else data
@@ -126,7 +125,7 @@ class ExportService:
             imported = 0
             skipped = 0
 
-            with open(path, "r", encoding="utf-8-sig") as f:
+            with open(path, encoding="utf-8-sig") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     try:

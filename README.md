@@ -22,10 +22,12 @@ Tüm veriler SQLite kullanılarak tamamen yerel olarak saklanır. Herhangi bir a
 ## ✨ Özellikler
 
 - 🤖 **Yapay zeka destekli içerik üretimi:** Girilen kelimeler için otomatik anlam, kelime türü, örnek cümle, çeviri, eş anlamlı, zıt anlamlı ve kullanım notları oluşturur.
+- 🧠 **Aralıklı tekrar (spaced repetition):** SM-2 algoritması ile her kelimeyi tam unutmaya yakın zamanda karşınıza getirir. Flashcard tarzı **çalışma modu** ile kalıcı öğrenme.
 - 🌍 **Bağlam odaklı öğrenme:** Kelimeleri yalnızca tanım olarak değil, gerçek kullanım örnekleriyle birlikte anlamayı kolaylaştırır.
 - 🌓 **Aydınlık ve karanlık tema desteği:** Tek tıkla tema değiştirebilir, daha konforlu bir kullanım deneyimi elde edebilirsiniz.
-- 🔒 **%100 yerel veri saklama:** Tüm kayıtlar cihazınızdaki `~/.lexis/lexis.db` veritabanında tutulur.
+- 🔒 **%100 yerel veri saklama:** Tüm kayıtlar (ve API anahtarınız) cihazınızdaki `~/.lexis/lexis.db` veritabanında tutulur.
 - 🏷️ **Etiket ve öğrenme durumu yönetimi:** Kelimelere özel etiketler ekleyebilir; Yeni, Öğreniliyor ve Öğrenildi gibi durumlara göre filtreleme yapabilirsiniz.
+- ⌨️ **Klavye kısayolları:** `Ctrl+N` kelime ekle · `Ctrl+P` çalış · `Ctrl+1/2` sayfalar · `Ctrl+,` ayarlar. Çalışma modunda `Boşluk` cevabı açar, `1-4` değerlendirir.
 - 📥 **İçe / dışa aktarma desteği:** Sözlüğünüzü CSV ve JSON formatlarında dışa aktarabilir veya içe aktarabilirsiniz.
 - ⚡ **Akıcı masaüstü deneyimi:** PyQt6 ve QThread tabanlı yapı sayesinde AI işlemleri sırasında arayüz donmadan çalışmaya devam eder.
 
@@ -33,10 +35,10 @@ Tüm veriler SQLite kullanılarak tamamen yerel olarak saklanır. Herhangi bir a
 
 - **Dil:** Python 3.10+
 - **Arayüz:** PyQt6
-- **Veritabanı:** SQLite
-- **ORM:** SQLModel & SQLAlchemy
-- **AI entegrasyonu:** `google-genai`
+- **Veritabanı:** SQLite (`sqlite3`, WAL modu)
+- **AI entegrasyonu:** `google-genai` (Gemini, yapısal `response_schema`)
 - **Yapılandırma:** `pydantic-settings`
+- **Test & lint:** `pytest`, `ruff`
 
 ## 🚀 Kurulum ve Çalıştırma
 
@@ -46,7 +48,7 @@ Arch tabanlı sistemlerde Lexis’i AUR üzerinden kolayca kurabilirsiniz:
 
 ```bash
 yay -S lexis-git
-````
+```
 
 Paru kullanıyorsanız:
 
@@ -87,7 +89,22 @@ AI özelliklerini kullanabilmek için bir Gemini API anahtarı gereklidir.
 3. Sol menüden **Ayarlar** bölümüne gidin.
 4. API anahtarınızı girip kaydedin.
 
-Anahtar yalnızca yerel ortamınızda saklanır.
+Anahtar yalnızca yerel veritabanınızda (`~/.lexis/lexis.db`) saklanır; hiçbir yere gönderilmez.
+
+## 🧪 Geliştirme
+
+```bash
+# Geliştirme bağımlılıklarıyla kur
+pip install -e ".[dev]"
+
+# Testler
+pytest
+
+# Lint
+ruff check lexis/ tests/
+```
+
+Her push ve pull request'te GitHub Actions üzerinde Python 3.10–3.12 için lint + testler otomatik çalışır.
 
 ## 📸 Ekran Görüntüleri
 
@@ -95,6 +112,29 @@ Anahtar yalnızca yerel ortamınızda saklanır.
 <img width="1908" height="1044" alt="Lexis screenshot 1" src="https://github.com/user-attachments/assets/40040253-f286-4f39-af2d-529d046b2a3f" />
 <img width="1908" height="1044" alt="Lexis screenshot 2" src="https://github.com/user-attachments/assets/86088142-e4cc-4a05-aac4-5da7f3713b89" />
 <img width="1600" height="875" alt="Lexis screenshot 3" src="https://github.com/user-attachments/assets/00c6c47a-8d64-4efe-822f-0cf08722517c" />
+
+---
+
+## 🇬🇧 In English
+
+**Lexis** is a lightweight, modern, local-first desktop dictionary for language learners. Type a word and Google Gemini generates its definition, part of speech, example sentences with Turkish translations, synonyms, antonyms and usage notes in seconds.
+
+Highlights:
+
+- 🤖 **AI-generated content** via Google Gemini (structured `response_schema` output).
+- 🧠 **Spaced repetition (SM-2)** with a flashcard **practice mode** that resurfaces each word right before you'd forget it.
+- 🔒 **100% local** — all data and your API key live in `~/.lexis/lexis.db`. No accounts, no servers.
+- 🌓 Light/dark themes, tags, learning statuses, CSV/JSON import & export.
+- ⌨️ Keyboard shortcuts: `Ctrl+N` add · `Ctrl+P` practice · `Ctrl+1/2` pages · `Ctrl+,` settings; in practice `Space` reveals, `1–4` grade.
+
+**Quick start**
+
+```bash
+git clone https://github.com/talhacaglar/lexis.git
+cd lexis
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+lexis
 ```
 
-İstersen bir sonraki mesajda bunun daha “global README” tarzında İngilizce versiyonunu da verebilirim.
+Then open **Settings**, paste your free [Google AI Studio](https://aistudio.google.com/app/apikey) API key, and start adding words. Built with Python 3.10+, PyQt6 and SQLite.

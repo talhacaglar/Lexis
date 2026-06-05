@@ -60,8 +60,8 @@ class SettingsSection(QWidget):
     def add_widget(self, w: QWidget) -> None:
         self._inner.addWidget(w)
 
-    def add_layout(self, l) -> None:
-        self._inner.addLayout(l)
+    def add_layout(self, inner_layout) -> None:
+        self._inner.addLayout(inner_layout)
 
 
 class SettingsView(QWidget):
@@ -122,7 +122,7 @@ class SettingsView(QWidget):
 
         theme_row = QHBoxLayout()
         theme_row.setSpacing(10)
-        
+
         self._dark_btn = QPushButton("Karanlık Tema")
         self._dark_btn.setObjectName("secondaryBtn")
         self._dark_btn.setMinimumHeight(44)
@@ -137,12 +137,16 @@ class SettingsView(QWidget):
         theme_row.addStretch()
 
         active_theme = get_settings().app_theme
+        selected_style = (
+            f"background-color: {Colors.BTN_BG}; color: {Colors.BTN_TEXT}; "
+            "border: none; font-weight: 600;"
+        )
         if active_theme == "light":
             self._light_btn.setObjectName("primaryBtn")
-            self._light_btn.setStyleSheet(f"background-color: {Colors.ACCENT}; color: white; border: none;")
+            self._light_btn.setStyleSheet(selected_style)
         else:
             self._dark_btn.setObjectName("primaryBtn")
-            self._dark_btn.setStyleSheet(f"background-color: {Colors.ACCENT}; color: white; border: none;")
+            self._dark_btn.setStyleSheet(selected_style)
 
         appearance_section.add_layout(theme_row)
         layout.addWidget(appearance_section)
@@ -152,7 +156,7 @@ class SettingsView(QWidget):
 
         desc = QLabel(
             "Google AI Studio'dan aldığınız API anahtarını buraya girin. "
-            "Anahtar yerel olarak .env dosyasında saklanır."
+            "Anahtar yalnızca yerel veritabanınızda (~/.lexis/lexis.db) saklanır."
         )
         desc.setWordWrap(True)
         desc.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: 13px; line-height: 1.6;")
@@ -190,9 +194,9 @@ class SettingsView(QWidget):
         self._api_status.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 12px;")
         api_section.add_widget(self._api_status)
 
-        link = QLabel('<a href="https://aistudio.google.com/app/apikey" style="color: #7C6EE8;">API anahtarı almak için Google AI Studio\'yu ziyaret edin →</a>')
+        link = QLabel(f'<a href="https://aistudio.google.com/app/apikey" style="color: {Colors.ACCENT_LIGHT};">API anahtarı almak için Google AI Studio\'yu ziyaret edin →</a>')
         link.setOpenExternalLinks(True)
-        link.setStyleSheet(f"font-size: 12px;")
+        link.setStyleSheet("font-size: 12px;")
         api_section.add_widget(link)
 
         layout.addWidget(api_section)

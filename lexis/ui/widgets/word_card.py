@@ -6,7 +6,7 @@ Kelime listesinde kullanılan hover-animasyonlu kart widget'ı.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QPropertyAnimation, QRect, Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QCursor, QEnterEvent
 from PyQt6.QtWidgets import (
     QFrame,
@@ -40,13 +40,13 @@ class WordCard(QFrame):
     def _setup_ui(self) -> None:
         self.setObjectName("card")
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.setMinimumHeight(140)
-        self.setMaximumHeight(170)
+        self.setMinimumHeight(148)
+        self.setMaximumHeight(176)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(10)
 
         # ── Top Row: Term + Favorite ──
         top = QHBoxLayout()
@@ -56,8 +56,9 @@ class WordCard(QFrame):
         self._term_label.setObjectName("heading3")
         self._term_label.setStyleSheet(f"""
             color: {Colors.TEXT_PRIMARY};
-            font-size: 17px;
+            font-size: 18px;
             font-weight: 700;
+            letter-spacing: -0.2px;
         """)
 
         self._fav_btn = QPushButton("♥")
@@ -109,13 +110,13 @@ class WordCard(QFrame):
         # ── Definition Preview ──
         definition = self._word.definition_short or self._word.definition
         if definition:
-            preview = definition[:100] + ("…" if len(definition) > 100 else "")
+            preview = definition[:110] + ("…" if len(definition) > 110 else "")
             def_label = QLabel(preview)
             def_label.setObjectName("mutedText")
             def_label.setStyleSheet(f"""
                 color: {Colors.TEXT_SECONDARY};
-                font-size: 12px;
-                line-height: 1.5;
+                font-size: 13px;
+                line-height: 1.6;
             """)
             def_label.setWordWrap(True)
             layout.addWidget(def_label, 1)
@@ -158,8 +159,8 @@ class WordCard(QFrame):
         self.setStyleSheet(f"""
             QFrame#card {{
                 background-color: {Colors.BG_ELEVATED};
-                border-radius: 14px;
-                border: 1px solid {Colors.BORDER_FOCUS};
+                border-radius: 16px;
+                border: 1px solid {Colors.BORDER};
             }}
         """)
         super().enterEvent(event)

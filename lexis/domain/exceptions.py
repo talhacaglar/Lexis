@@ -47,7 +47,7 @@ class DatabaseError(LexisError):
         self.original = original
 
 
-class ImportError(LexisError):
+class LexisImportError(LexisError):
     """İçe aktarma hatalarında fırlatılır."""
 
 

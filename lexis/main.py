@@ -2,8 +2,9 @@
 Lexis — Entry Point
 """
 
-from lexis.ui.app import run
 import sys
+
+from lexis.ui.app import run
 
 
 def main() -> None:

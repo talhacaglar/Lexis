@@ -6,18 +6,20 @@ Lexis — Widget: Loading Overlay
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QSize, Qt, QTimer, pyqtProperty
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
+from lexis.ui.theme import Colors
 
 
 class SpinnerWidget(QWidget):
     """Dönen daire animasyonu."""
 
-    def __init__(self, parent: QWidget | None = None, size: int = 40, color: str = "#7C6EE8") -> None:
+    def __init__(self, parent: QWidget | None = None, size: int = 40, color: str | None = None) -> None:
         super().__init__(parent)
         self._size = size
-        self._color = QColor(color)
+        self._color = QColor(color or Colors.ACCENT)
         self._angle = 0
         self.setFixedSize(size, size)
 
@@ -59,7 +61,7 @@ class LoadingOverlay(QWidget):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet("background-color: rgba(11, 13, 23, 0.85); border-radius: 14px;")
+        self.setStyleSheet("background-color: rgba(0, 0, 0, 0.78); border-radius: 16px;")
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -70,8 +72,8 @@ class LoadingOverlay(QWidget):
 
         self._msg_label = QLabel(message)
         self._msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._msg_label.setStyleSheet("""
-            color: #8B8FA8;
+        self._msg_label.setStyleSheet(f"""
+            color: {Colors.TEXT_SECONDARY};
             font-size: 13px;
             font-weight: 500;
             background: transparent;

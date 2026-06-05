@@ -3,8 +3,9 @@ Lexis — Tests: Word Service
 """
 
 import pytest
+
 from lexis.domain.exceptions import DuplicateWordError
-from lexis.domain.models import Word, WordStatus
+from lexis.domain.models import WordStatus
 from lexis.services.word_service import WordService
 
 
