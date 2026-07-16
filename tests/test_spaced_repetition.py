@@ -3,6 +3,7 @@ Lexis — Tests: Aralıklı tekrar (SM-2) ve migration
 """
 
 import sqlite3
+from datetime import timedelta
 
 from lexis.domain.models import ReviewGrade, Word, WordStatus, compute_sm2, utcnow
 from lexis.persistence.database import Database
@@ -77,10 +78,35 @@ def test_review_word_flow(word_service: WordService):
     assert all(w.id != word.id for w in due_after)
 
 
-def test_stats_due_today(word_service: WordService):
-    word_service.add_word("nascent", "en")
+def test_stats_separates_unreviewed_from_scheduled(word_service: WordService):
+    """
+    Yeni eklenen kelime 'due_today' değil 'unreviewed' sayılır; due_today
+    yalnızca planlanmış (daha önce çalışılmış) tekrarları gösterir.
+    """
+    word = word_service.add_word("nascent", "en")
+
     stats = word_service.get_stats()
-    assert stats.due_today >= 1
+    assert stats.unreviewed == 1
+    assert stats.due_today == 0
+    assert stats.practice_queue_size == 1
+
+    # Çalışıldıktan sonra ileri bir tarihe planlanır: artık ikisinde de sayılmaz.
+    word_service.review_word(word.id, ReviewGrade.GOOD)
+    stats_after = word_service.get_stats()
+    assert stats_after.unreviewed == 0
+    assert stats_after.due_today == 0
+
+
+def test_stats_due_today_counts_overdue_scheduled_word(word_service: WordService):
+    """Vadesi geçmiş planlı bir tekrar due_today'e girer."""
+    word = word_service.add_word("overdue", "en")
+    word.due_at = utcnow() - timedelta(days=1)
+    word.interval_days = 3
+    word_service.update_word(word)
+
+    stats = word_service.get_stats()
+    assert stats.due_today == 1
+    assert stats.unreviewed == 0
 
 
 # ── v1 → v2 migration ─────────────────────────────────────────────────────

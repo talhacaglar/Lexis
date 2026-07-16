@@ -9,7 +9,12 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import os
+import tempfile
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import IO
 
 from lexis.domain.exceptions import ExportError, LexisImportError
 from lexis.domain.models import Word
@@ -18,11 +23,68 @@ from lexis.persistence.word_repository import WordRepository
 logger = logging.getLogger(__name__)
 
 
+@contextmanager
+def _atomic_write(path: Path, encoding: str, newline: str | None = None) -> Iterator[IO]:
+    """
+    Aynı dizinde geçici dosyaya yazıp os.replace ile hedefe taşır.
+
+    Yazma sırasında bir hata olursa kullanıcının mevcut dosyası bozulmadan/yarım
+    kalmadan yerinde durur; taşıma aynı dosya sistemi içinde atomiktir.
+    """
+    path = Path(path)
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        with open(tmp_path, "w", encoding=encoding, newline=newline) as f:
+            yield f
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
 class ExportService:
     """JSON ve CSV import/export işlemleri."""
 
     def __init__(self, repository: WordRepository) -> None:
         self._repo = repository
+
+    def _collect(
+        self,
+        rows: list,
+        build: Callable[[object], Word | None],
+        skip_duplicates: bool,
+    ) -> tuple[list[Word], int]:
+        """
+        Ham satırları Word listesine dönüştürür; bozuk satırları atlar.
+
+        Mükerrer kontrolü hem veritabanına hem de aynı dosyanın daha önceki
+        satırlarına karşı yapılır (toplu yazımda DB henüz o satırları görmez).
+        """
+        words: list[Word] = []
+        seen: set[tuple[str, str]] = set()
+        skipped = 0
+
+        for row in rows:
+            try:
+                word = build(row)
+                if word is None:
+                    skipped += 1
+                    continue
+                key = (word.term.strip().casefold(), word.language)
+                if skip_duplicates and (
+                    key in seen or self._repo.exists(word.term, word.language)
+                ):
+                    skipped += 1
+                    continue
+                seen.add(key)
+                words.append(word)
+            except Exception as e:
+                logger.warning(f"Satır içe aktarılamadı — {e}")
+                skipped += 1
+
+        return words, skipped
 
     # ── JSON ──────────────────────────────────────────────────────────────
 
@@ -36,7 +98,7 @@ class ExportService:
                 "count": len(words),
                 "words": [w.to_dict() for w in words],
             }
-            with open(path, "w", encoding="utf-8") as f:
+            with _atomic_write(path, encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.info(f"JSON dışa aktarıldı: {path} ({len(words)} kelime)")
             return len(words)
@@ -46,6 +108,9 @@ class ExportService:
     def import_json(self, path: Path, skip_duplicates: bool = True) -> tuple[int, int]:
         """
         JSON dosyasından kelime içe aktarır.
+
+        Bozuk satırlar atlanır; geçerli olanların tamamı tek transaction'da
+        yazılır (ya hepsi ya hiçbiri).
 
         Returns:
             (imported_count, skipped_count) tuple
@@ -58,20 +123,8 @@ class ExportService:
             if not isinstance(words_data, list):
                 raise LexisImportError("Geçersiz JSON formatı.")
 
-            imported = 0
-            skipped = 0
-
-            for word_data in words_data:
-                try:
-                    word = Word.from_dict(word_data)
-                    if skip_duplicates and self._repo.exists(word.term, word.language):
-                        skipped += 1
-                        continue
-                    self._repo.create(word)
-                    imported += 1
-                except Exception as e:
-                    logger.warning(f"Kelime içe aktarılamadı: {word_data.get('term', '?')} — {e}")
-                    skipped += 1
+            words, skipped = self._collect(words_data, Word.from_dict, skip_duplicates)
+            imported = self._repo.create_many(words)
 
             logger.info(f"JSON içe aktarıldı: {imported} kelime, {skipped} atlandı")
             return imported, skipped
@@ -94,7 +147,7 @@ class ExportService:
         """Tüm kelimeleri CSV dosyasına aktarır."""
         try:
             words = self._repo.get_all()
-            with open(path, "w", encoding="utf-8-sig", newline="") as f:
+            with _atomic_write(path, encoding="utf-8-sig", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=self.CSV_FIELDS)
                 writer.writeheader()
                 for w in words:
@@ -119,49 +172,42 @@ class ExportService:
         except Exception as e:
             raise ExportError(f"CSV dışa aktarma hatası: {e}") from e
 
+    @staticmethod
+    def _word_from_csv_row(row: dict) -> Word | None:
+        """Bir CSV satırını Word'e çevirir; terim yoksa None döndürür (atlanır)."""
+        term = (row.get("term") or "").strip()
+        if not term:
+            return None
+
+        def split_list(field: str, sep: str = ",") -> list[str]:
+            return [p.strip() for p in (row.get(field) or "").split(sep) if p.strip()]
+
+        return Word(
+            term=term,
+            language=(row.get("language") or "en").strip(),
+            definition=row.get("definition", ""),
+            definition_short=row.get("definition_short", ""),
+            part_of_speech=row.get("part_of_speech", ""),
+            synonyms=split_list("synonyms"),
+            antonyms=split_list("antonyms"),
+            example_sentences=split_list("example_sentences", "|"),
+            usage_notes=row.get("usage_notes", ""),
+            tags=split_list("tags"),
+            ai_generated=False,
+        )
+
     def import_csv(self, path: Path, skip_duplicates: bool = True) -> tuple[int, int]:
-        """CSV dosyasından kelime içe aktarır."""
+        """
+        CSV dosyasından kelime içe aktarır.
+
+        Bozuk satırlar atlanır; geçerli olanların tamamı tek transaction'da yazılır.
+        """
         try:
-            imported = 0
-            skipped = 0
-
             with open(path, encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    try:
-                        term = row.get("term", "").strip()
-                        language = row.get("language", "en").strip()
-                        if not term:
-                            skipped += 1
-                            continue
+                rows = list(csv.DictReader(f))
 
-                        if skip_duplicates and self._repo.exists(term, language):
-                            skipped += 1
-                            continue
-
-                        synonyms = [s.strip() for s in row.get("synonyms", "").split(",") if s.strip()]
-                        antonyms = [a.strip() for a in row.get("antonyms", "").split(",") if a.strip()]
-                        examples = [e.strip() for e in row.get("example_sentences", "").split("|") if e.strip()]
-                        tags = [t.strip() for t in row.get("tags", "").split(",") if t.strip()]
-
-                        word = Word(
-                            term=term,
-                            language=language,
-                            definition=row.get("definition", ""),
-                            definition_short=row.get("definition_short", ""),
-                            part_of_speech=row.get("part_of_speech", ""),
-                            synonyms=synonyms,
-                            antonyms=antonyms,
-                            example_sentences=examples,
-                            usage_notes=row.get("usage_notes", ""),
-                            tags=tags,
-                            ai_generated=False,
-                        )
-                        self._repo.create(word)
-                        imported += 1
-                    except Exception as e:
-                        logger.warning(f"CSV satırı içe aktarılamadı: {row.get('term', '?')} — {e}")
-                        skipped += 1
+            words, skipped = self._collect(rows, self._word_from_csv_row, skip_duplicates)
+            imported = self._repo.create_many(words)
 
             logger.info(f"CSV içe aktarıldı: {imported} kelime, {skipped} atlandı")
             return imported, skipped

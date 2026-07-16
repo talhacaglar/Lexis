@@ -136,6 +136,18 @@ class Database:
         finally:
             conn.close()
 
+    @contextmanager
+    def transaction(self) -> Generator[sqlite3.Connection, None, None]:
+        """
+        Tek bağlantı, tek commit ile atomik işlem.
+
+        Toplu yazmalarda (örn. içe aktarma) her satır için ayrı bağlantı açıp
+        commit etmek yerine kullanılır: hata hâlinde tamamı geri alınır.
+        """
+        with self.connection() as conn:
+            yield conn
+            conn.commit()
+
     def get_setting(self, key: str, default: str = "") -> str:
         with self.connection() as conn:
             row = conn.execute(

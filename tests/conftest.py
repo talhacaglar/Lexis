@@ -10,6 +10,7 @@ from lexis.domain.models import Word, WordStatus
 from lexis.persistence.database import Database
 from lexis.persistence.word_repository import WordRepository
 from lexis.services.ai_service import AIService
+from lexis.services.export_service import ExportService
 from lexis.services.word_service import WordService
 
 
@@ -33,6 +34,11 @@ def ai_service() -> AIService:
 @pytest.fixture
 def word_service(repo: WordRepository, ai_service: AIService) -> WordService:
     return WordService(repository=repo, ai_service=ai_service)
+
+
+@pytest.fixture
+def export_service(repo: WordRepository) -> ExportService:
+    return ExportService(repository=repo)
 
 
 @pytest.fixture

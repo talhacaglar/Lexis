@@ -35,7 +35,15 @@ class WordService:
         tag: str = "",
         sort_by: str = "created_at",
         sort_desc: bool = True,
+        limit: int = 0,
+        offset: int = 0,
     ) -> list[Word]:
+        """
+        Filtrelenmiş kelime listesi.
+
+        limit > 0 verildiğinde sayfalama uygulanır; kütüphane büyüdüğünde
+        tüm tabloyu belleğe çekmemek için kullanılır.
+        """
         return self._repo.get_all(
             search=search,
             language=language,
@@ -44,6 +52,25 @@ class WordService:
             tag=tag,
             sort_by=sort_by,
             sort_desc=sort_desc,
+            limit=limit,
+            offset=offset,
+        )
+
+    def count(
+        self,
+        search: str = "",
+        language: str = "",
+        status: WordStatus | None = None,
+        favorites_only: bool = False,
+        tag: str = "",
+    ) -> int:
+        """get_all ile aynı filtrelere uyan toplam kayıt sayısı."""
+        return self._repo.count(
+            search=search,
+            language=language,
+            status=status,
+            favorites_only=favorites_only,
+            tag=tag,
         )
 
     def get_by_id(self, word_id: str) -> Word:

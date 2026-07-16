@@ -267,4 +267,12 @@ class WordStats:
     favorites: int = 0
     added_today: int = 0
     reviewed_today: int = 0
+    # Zamanı gelmiş planlı tekrarlar (hiç çalışılmamışlar hariç).
     due_today: int = 0
+    # Hiç çalışılmamış, dolayısıyla henüz planlanmamış kelimeler.
+    unreviewed: int = 0
+
+    @property
+    def practice_queue_size(self) -> int:
+        """Çalışma kuyruğunun toplam boyutu: planlı tekrarlar + hiç çalışılmamışlar."""
+        return self.due_today + self.unreviewed

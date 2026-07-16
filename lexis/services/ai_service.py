@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import json
 import logging
+import random
+import time
 
 from google import genai
 from google.genai import types
@@ -24,6 +26,34 @@ from lexis.domain.models import SUPPORTED_LANGUAGES
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+
+# Ağ isteği zaman aşımı (ms). google-genai http_options bunu ms cinsinden bekler.
+REQUEST_TIMEOUT_MS = 30_000
+
+MAX_ATTEMPTS = 3
+BACKOFF_BASE_SECONDS = 1.0
+
+# Geçici sunucu hataları: bunlarda yeniden denemek anlamlı.
+RETRYABLE_STATUS = (429, 500, 502, 503, 504)
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """
+    Hatanın geçici olup olmadığını belirler (hız limiti / sunucu / ağ hatası).
+
+    google-genai istisnaları `code` ya da `status_code` taşıyabildiği gibi bazı
+    ağ hataları hiçbir kod taşımaz; bu durumda mesaj metnine bakılır.
+    """
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    if isinstance(code, int) and code in RETRYABLE_STATUS:
+        return True
+    text = str(exc).lower()
+    if any(str(s) in text for s in RETRYABLE_STATUS):
+        return True
+    return any(
+        marker in text
+        for marker in ("timeout", "timed out", "temporarily", "unavailable", "connection")
+    )
 
 
 class ExampleSentence(BaseModel):
@@ -97,6 +127,38 @@ def _format_examples(raw: object) -> list[str]:
     return formatted
 
 
+def _check_blocked(response) -> None:
+    """
+    Yanıtın güvenlik filtresine ya da uzunluk sınırına takılıp takılmadığını denetler.
+
+    Bloklanan yanıtta `text` boş gelir; bu denetim olmadan kullanıcı "AI yanıtı
+    ayrıştırılamadı" gibi nedeni gizleyen bir hata görürdü.
+    """
+    feedback = getattr(response, "prompt_feedback", None)
+    block_reason = getattr(feedback, "block_reason", None) if feedback else None
+    if block_reason:
+        raise AIServiceError(
+            f"İstek güvenlik filtresine takıldı ({block_reason}). "
+            "Farklı bir kelime deneyin."
+        )
+
+    candidates = getattr(response, "candidates", None) or []
+    if not candidates:
+        raise AIServiceError("Model boş yanıt döndürdü. Lütfen tekrar deneyin.")
+
+    finish_reason = getattr(candidates[0], "finish_reason", None)
+    if finish_reason is None:
+        return
+
+    reason = getattr(finish_reason, "name", str(finish_reason)).upper()
+    if reason in ("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "RECITATION"):
+        raise AIServiceError(
+            f"Yanıt güvenlik filtresine takıldı ({reason}). Farklı bir kelime deneyin."
+        )
+    if reason == "MAX_TOKENS":
+        raise AIServiceError("Yanıt uzunluk sınırına takıldı. Lütfen tekrar deneyin.")
+
+
 class AIService:
     """Google Gemini API ile kelime içeriği üretir."""
 
@@ -109,9 +171,13 @@ class AIService:
 
     def _setup(self, api_key: str) -> None:
         try:
-            self._client = genai.Client(api_key=api_key)
+            # Zaman aşımı olmadan asılı kalan bir istek worker thread'ini süresiz bloklar.
+            self._client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS),
+            )
             self._api_key = api_key
-            logger.info("Gemini API yapılandırıldı.")
+            logger.info("Gemini API yapılandırıldı (model: %s).", self._model)
         except Exception as e:
             logger.error(f"Gemini API yapılandırma hatası: {e}")
             raise AIServiceError("API yapılandırılamadı.", original=e) from e
@@ -143,14 +209,8 @@ class AIService:
         logger.info(f"Kelime içeriği üretiliyor: {term} ({language})")
 
         try:
-            response = self._client.models.generate_content(
-                model=self._model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=WordData,
-                ),
-            )
+            response = self._generate_with_retry(prompt)
+            _check_blocked(response)
 
             # Tercihen SDK'nın doğrulanmış nesnesini kullan; yoksa metni ayrıştır.
             parsed: WordData | None = getattr(response, "parsed", None)
@@ -176,3 +236,35 @@ class AIService:
         except Exception as e:
             logger.error(f"Gemini API hatası: {e}")
             raise AIServiceError(str(e), original=e) from e
+
+    def _generate_with_retry(self, prompt: str):
+        """
+        generate_content'i çağırır; geçici hatalarda üstel geri çekilmeyle yeniden dener.
+
+        Kalıcı hatalar (geçersiz anahtar, kota bitmiş vb.) ilk denemede yükseltilir —
+        yeniden denemek yalnızca kullanıcıyı bekletir.
+        """
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=WordData,
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                return self._client.models.generate_content(
+                    model=self._model, contents=prompt, config=config
+                )
+            except Exception as e:
+                last_error = e
+                if attempt == MAX_ATTEMPTS or not _is_retryable(e):
+                    raise
+                # Jitter, eşzamanlı isteklerin aynı anda tekrar denemesini önler.
+                delay = BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)) + random.uniform(0, 0.3)
+                logger.warning(
+                    "Gemini isteği geçici hata verdi (deneme %d/%d), %.1f sn sonra tekrar: %s",
+                    attempt, MAX_ATTEMPTS, delay, e,
+                )
+                time.sleep(delay)
+
+        raise AIServiceError(str(last_error), original=last_error)  # pragma: no cover

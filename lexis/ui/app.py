@@ -43,7 +43,10 @@ def create_services() -> tuple[WordService, ExportService]:
     settings = get_settings()
 
     repo = WordRepository(db)
-    ai = AIService(api_key=settings.gemini_api_key if settings.has_api_key else None)
+    ai = AIService(
+        api_key=settings.gemini_api_key if settings.has_api_key else None,
+        model=settings.gemini_model,
+    )
 
     word_service = WordService(repository=repo, ai_service=ai)
     export_service = ExportService(repository=repo)
