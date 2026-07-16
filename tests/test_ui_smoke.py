@@ -92,9 +92,11 @@ def test_status_badge_carries_status_property(qtbot):
 
 def test_library_renders_word_cards(window, repo: WordRepository, sample_word: Word):
     repo.create(sample_word)
-    window._library.refresh()
+    library = window._library
+    library.refresh()
 
-    assert [c.word_id for c in window._library._word_cards] == [sample_word.id]
+    visible = library._word_cards[: library._word_cards_used]
+    assert [c.word_id for c in visible] == [sample_word.id]
 
 
 def test_word_detail_loads(window, repo: WordRepository, sample_word: Word):

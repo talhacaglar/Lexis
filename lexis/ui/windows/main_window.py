@@ -166,9 +166,22 @@ class MainWindow(QWidget):
             "Ctrl+1": lambda: self._navigate_to(PAGE_DASHBOARD),
             "Ctrl+2": lambda: self._navigate_to(PAGE_LIBRARY),
             "Ctrl+,": lambda: self._navigate_to(PAGE_SETTINGS),
+            "Ctrl+F": self._focus_search,
+            "/": self._focus_search,
+            "Escape": self._escape,
         }
         for key, handler in shortcuts.items():
             QShortcut(QKeySequence(key), self, activated=handler)
+
+    def _focus_search(self) -> None:
+        """Kütüphaneye geçip arama alanına odaklanır."""
+        self._navigate_to(PAGE_LIBRARY)
+        self._library.focus_search()
+
+    def _escape(self) -> None:
+        """Detay ve çalışma ekranlarından geri döner."""
+        if self._stack.currentIndex() in (PAGE_DETAIL, PAGE_PRACTICE):
+            self._go_back()
 
     def _setup_ui(self) -> None:
         self.setObjectName("root")

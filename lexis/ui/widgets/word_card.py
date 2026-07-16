@@ -1,7 +1,11 @@
 """
 Lexis — Widget: Word Card
 
-Kelime listesinde kullanılan hover-animasyonlu kart widget'ı.
+Kelime listesinde kullanılan tıklanabilir kart.
+
+Yapı bir kez kurulur (_setup_ui), veri ayrıca bağlanır (bind). Böylece
+kütüphane filtrelenirken kartlar yok edilip yeniden yaratılmak yerine
+yeniden kullanılabilir.
 """
 
 from __future__ import annotations
@@ -20,23 +24,26 @@ from PyQt6.QtWidgets import (
 )
 
 from lexis.domain.models import Word
+from lexis.ui.theme import repolish
 from lexis.ui.widgets.common import StatusBadge
+
+PREVIEW_CHARS = 110
+MAX_TAGS = 3
 
 
 class WordCard(QFrame):
-    """
-    Tek bir kelimeyi temsil eden tıklanabilir kart.
-    Hover'da yumuşak bir border animasyonu gösterir.
-    """
+    """Tek bir kelimeyi temsil eden tıklanabilir kart."""
 
-    clicked = pyqtSignal(str)          # word_id
-    favorite_toggled = pyqtSignal(str) # word_id
-    delete_requested = pyqtSignal(str) # word_id
+    clicked = pyqtSignal(str)           # word_id
+    favorite_toggled = pyqtSignal(str)  # word_id
+    delete_requested = pyqtSignal(str)  # word_id
+    tag_clicked = pyqtSignal(str)       # tag adı
 
     def __init__(self, word: Word, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._word = word
         self._setup_ui()
+        self.bind(word)
 
     def _setup_ui(self) -> None:
         self.setObjectName("card")
@@ -49,17 +56,16 @@ class WordCard(QFrame):
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(10)
 
-        # ── Top Row: Term + Favorite ──
+        # ── Üst satır: terim + favori ──
         top = QHBoxLayout()
         top.setContentsMargins(0, 0, 0, 0)
 
-        self._term_label = QLabel(self._word.term)
+        self._term_label = QLabel()
         self._term_label.setObjectName("cardTerm")
 
         self._fav_btn = QPushButton("♥")
         self._fav_btn.setObjectName("favoriteBtn")
         self._fav_btn.setFixedSize(30, 30)
-        self._fav_btn.setProperty("active", str(self._word.is_favorite).lower())
         self._fav_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self._fav_btn.clicked.connect(self._on_favorite)
         self._fav_btn.setToolTip("Favorilere ekle/çıkar")
@@ -69,57 +75,70 @@ class WordCard(QFrame):
         top.addWidget(self._fav_btn)
         layout.addLayout(top)
 
-        # ── Badges Row: Language + Status + POS ──
+        # ── Rozetler: dil + durum + tür ──
         badges = QHBoxLayout()
         badges.setContentsMargins(0, 0, 0, 0)
         badges.setSpacing(6)
 
-        lang_badge = QLabel(self._word.language.upper())
-        lang_badge.setObjectName("langBadge")
+        self._lang_badge = QLabel()
+        self._lang_badge.setObjectName("langBadge")
+        self._status_badge = StatusBadge("new", "")
+        self._pos_badge = QLabel()
+        self._pos_badge.setObjectName("posBadge")
 
-        badges.addWidget(lang_badge)
-        badges.addWidget(
-            StatusBadge(self._word.status.value, self._word.status.display_name)
-        )
-
-        if self._word.part_of_speech:
-            pos_badge = QLabel(self._word.part_of_speech)
-            pos_badge.setObjectName("posBadge")
-            badges.addWidget(pos_badge)
-
+        badges.addWidget(self._lang_badge)
+        badges.addWidget(self._status_badge)
+        badges.addWidget(self._pos_badge)
         badges.addStretch()
         layout.addLayout(badges)
 
-        # ── Definition Preview ──
-        definition = self._word.definition_short or self._word.definition
-        if definition:
-            preview = definition[:110] + ("…" if len(definition) > 110 else "")
-            def_label = QLabel(preview)
-            def_label.setObjectName("cardPreview")
-            def_label.setWordWrap(True)
-            layout.addWidget(def_label, 1)
-        else:
-            layout.addStretch(1)
+        # ── Tanım önizlemesi ──
+        self._preview_label = QLabel()
+        self._preview_label.setObjectName("cardPreview")
+        self._preview_label.setWordWrap(True)
+        layout.addWidget(self._preview_label, 1)
 
-        # ── Tags Row ──
-        if self._word.tags:
-            tags_row = QHBoxLayout()
-            tags_row.setContentsMargins(0, 0, 0, 0)
-            tags_row.setSpacing(4)
-            for tag in self._word.tags[:3]:
-                t = QLabel(f"#{tag}")
-                t.setObjectName("cardTag")
-                tags_row.addWidget(t)
-            tags_row.addStretch()
-            layout.addLayout(tags_row)
+        # ── Etiketler ──
+        self._tags_row = QHBoxLayout()
+        self._tags_row.setContentsMargins(0, 0, 0, 0)
+        self._tags_row.setSpacing(4)
+        self._tag_labels: list[_ClickableTag] = []
+        for _ in range(MAX_TAGS):
+            tag = _ClickableTag()
+            tag.clicked.connect(self.tag_clicked)
+            self._tag_labels.append(tag)
+            self._tags_row.addWidget(tag)
+        self._tags_row.addStretch()
+        layout.addLayout(self._tags_row)
 
-    def update_word(self, word: Word) -> None:
-        """Kart verisi güncellenir."""
+    def bind(self, word: Word) -> None:
+        """Kartı verilen kelimeye bağlar (widget'lar yeniden kullanılır)."""
         self._word = word
-        # Basit güncelleme: kartı yeniden oluştur
-        for child in self.findChildren(QWidget):
-            child.deleteLater()
-        self._setup_ui()
+
+        self._term_label.setText(word.term)
+        self._fav_btn.setProperty("active", str(word.is_favorite).lower())
+        repolish(self._fav_btn)
+
+        self._lang_badge.setText(word.language.upper())
+        self._status_badge.set_status(word.status.value, word.status.display_name)
+
+        self._pos_badge.setText(word.part_of_speech or "")
+        self._pos_badge.setVisible(bool(word.part_of_speech))
+
+        definition = word.definition_short or word.definition
+        preview = definition[:PREVIEW_CHARS] + ("…" if len(definition) > PREVIEW_CHARS else "")
+        self._preview_label.setText(preview)
+        self._preview_label.setVisible(bool(definition))
+
+        for i, label in enumerate(self._tag_labels):
+            if i < len(word.tags):
+                label.set_tag(word.tags[i])
+                label.setVisible(True)
+            else:
+                label.setVisible(False)
+
+    # Geriye dönük ad.
+    update_word = bind
 
     def _on_favorite(self) -> None:
         self.favorite_toggled.emit(self._word.id)
@@ -140,3 +159,31 @@ class WordCard(QFrame):
     @property
     def word_id(self) -> str:
         return self._word.id
+
+    @property
+    def word(self) -> Word:
+        return self._word
+
+
+class _ClickableTag(QLabel):
+    """Tıklanınca o etikete filtreleyen kart etiketi."""
+
+    clicked = pyqtSignal(str)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("cardTag")
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self._tag = ""
+
+    def set_tag(self, tag: str) -> None:
+        self._tag = tag
+        self.setText(f"#{tag}")
+        self.setToolTip(f"'{tag}' etiketine göre filtrele")
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._tag:
+            self.clicked.emit(self._tag)
+            event.accept()  # kartın tıklamasını tetikleme
+            return
+        super().mousePressEvent(event)
