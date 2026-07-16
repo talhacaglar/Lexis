@@ -13,6 +13,7 @@ import logging
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -41,9 +42,15 @@ class PracticeView(QWidget):
         self._service = word_service
         self._queue: list[Word] = []
         self._index = 0
-        self._reviewed = 0
+        # Benzersiz kelime sayılır: "Tekrar" verilen kart oturumda ikinci kez
+        # sorulduğunda toplamı şişirmemeli.
+        self._reviewed_ids: set[str] = set()
         self._revealed = False
         self._setup_ui()
+
+    @property
+    def _reviewed(self) -> int:
+        return len(self._reviewed_ids)
 
     # ── UI kurulumu ───────────────────────────────────────────────────────
 
@@ -66,8 +73,21 @@ class PracticeView(QWidget):
         tb.addWidget(back_btn)
         tb.addStretch()
 
+        # Oturum uzunluğu — eskiden 30'a sabitti.
+        self._length_combo = QComboBox()
+        self._length_combo.setMinimumHeight(38)
+        self._length_combo.setAccessibleName("Oturum uzunluğu")
+        self._length_combo.setToolTip("Bu oturumda kaç kelime çalışılacak")
+        for label, value in (("10 kelime", 10), ("20 kelime", 20), ("30 kelime", 30),
+                             ("50 kelime", 50), ("Tümü", 0)):
+            self._length_combo.addItem(label, value)
+        self._length_combo.setCurrentIndex(2)  # varsayılan 30
+        self._length_combo.currentIndexChanged.connect(self._on_length_changed)
+        tb.addWidget(self._length_combo)
+
         self._progress_label = QLabel("")
         self._progress_label.setObjectName("practiceProgress")
+        tb.addSpacing(12)
         tb.addWidget(self._progress_label)
         root.addWidget(topbar)
 
@@ -183,16 +203,31 @@ class PracticeView(QWidget):
 
     # ── Oturum yönetimi ───────────────────────────────────────────────────
 
-    def start_session(self, limit: int = 30) -> None:
-        """Yeni bir tekrar oturumu başlatır."""
+    def start_session(self, limit: int | None = None) -> None:
+        """
+        Yeni bir tekrar oturumu başlatır.
+
+        limit verilmezse kullanıcının seçtiği oturum uzunluğu kullanılır.
+        """
+        if limit is None:
+            limit = self._session_limit()
         self._queue = self._service.get_due_words(limit=limit)
         self._index = 0
-        self._reviewed = 0
+        self._reviewed_ids = set()
         self.setFocus()
         if not self._queue:
             self._show_done(empty=True)
         else:
             self._show_current()
+
+    def _session_limit(self) -> int:
+        """Seçili oturum uzunluğu (0 = sınırsız)."""
+        return self._length_combo.currentData()
+
+    def _on_length_changed(self) -> None:
+        # Değerlendirmeler anında kaydedildiği için oturumu baştan başlatmak
+        # ilerlemeyi kaybettirmez.
+        self.start_session()
 
     def _current_word(self) -> Word | None:
         if 0 <= self._index < len(self._queue):
@@ -260,7 +295,7 @@ class PracticeView(QWidget):
         if word is None or not self._revealed:
             return
         try:
-            self._service.review_word(word.id, grade)
+            updated = self._service.review_word(word.id, grade)
         except Exception:
             # Kaydedilemeyen değerlendirmede karta ilerlemek tekrarı sessizce
             # kaybettirirdi; kullanıcı uyarılır ve kart yerinde kalır.
@@ -270,7 +305,13 @@ class PracticeView(QWidget):
             )
             return
 
-        self._reviewed += 1
+        self._reviewed_ids.add(word.id)
+
+        # Hatırlanamayan kart dakikalar sonrasına planlanır (SM-2 delay_minutes);
+        # oturumu terk etmeden yeniden sorulabilmesi için kuyruğun sonuna alınır.
+        if grade == ReviewGrade.AGAIN:
+            self._queue.append(updated)
+
         self._index += 1
         self._show_current()
 

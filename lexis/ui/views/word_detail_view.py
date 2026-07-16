@@ -25,6 +25,7 @@ from lexis.domain.models import Word, WordStatus
 from lexis.services.word_service import WordService
 from lexis.ui.theme import repolish
 from lexis.ui.widgets.common import Chip, Divider, SectionLabel, StatusBadge
+from lexis.ui.widgets.edit_word_dialog import EditWordDialog
 from lexis.ui.widgets.loading_overlay import LoadingOverlay
 from lexis.ui.widgets.tag_badge import TagBadge
 from lexis.workers.task_worker import TaskWorker
@@ -69,6 +70,13 @@ class WordDetailView(QWidget):
         back_btn.clicked.connect(self.back_requested)
         nav_layout.addWidget(back_btn)
         nav_layout.addStretch()
+
+        self._edit_btn = QPushButton("✎ Düzenle")
+        self._edit_btn.setObjectName("secondaryBtn")
+        self._edit_btn.setFixedHeight(34)
+        self._edit_btn.setToolTip("Kelime içeriğini elle düzenle")
+        self._edit_btn.clicked.connect(self._edit_word)
+        nav_layout.addWidget(self._edit_btn)
 
         self._regen_btn = QPushButton("✨ İçeriği Yenile")
         self._regen_btn.setObjectName("secondaryBtn")
@@ -473,6 +481,18 @@ class WordDetailView(QWidget):
         """Silmeyi MainWindow yürütür (onay + geri alınabilir toast orada)."""
         if self._word:
             self.delete_requested.emit(self._word.id)
+
+    def _edit_word(self) -> None:
+        """Kelimeyi elle düzenleme diyaloğunu açar."""
+        if not self._word:
+            return
+        dialog = EditWordDialog(self._word, self._service, parent=self)
+        dialog.word_saved.connect(self._on_word_edited)
+        dialog.exec()
+
+    def _on_word_edited(self, word_id: str) -> None:
+        self.load_word(word_id)
+        self.word_updated.emit(word_id)
 
     def _regenerate_ai(self) -> None:
         if not self._word:
