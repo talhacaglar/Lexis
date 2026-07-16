@@ -41,6 +41,35 @@ def export_service(repo: WordRepository) -> ExportService:
     return ExportService(repository=repo)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _theme_applied():
+    """
+    Temayı oturumda bir kez uygular.
+
+    QApplication.setStyleSheet mevcut tüm widget'ları yeniden boyar; her testte
+    çağrılırsa oturum boyunca biriken widget'lar yüzünden testler giderek
+    yavaşlar (ölçüldü: çağrı başına ~1 sn).
+    """
+    from PyQt6.QtWidgets import QApplication
+
+    from lexis.ui.theme import apply_theme, set_theme
+
+    app = QApplication.instance() or QApplication([])
+    set_theme("dark")
+    apply_theme(app)
+    return app
+
+
+@pytest.fixture
+def window(qtbot, word_service: WordService, export_service: ExportService):
+    """Servisleri bağlanmış, test edilebilir bir ana pencere."""
+    from lexis.ui.windows.main_window import MainWindow
+
+    w = MainWindow(word_service=word_service, export_service=export_service)
+    qtbot.addWidget(w)
+    return w
+
+
 @pytest.fixture
 def sample_word() -> Word:
     return Word(

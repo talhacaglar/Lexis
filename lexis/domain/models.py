@@ -158,6 +158,9 @@ class Word:
     example_sentences: list[str] = field(default_factory=list)
     usage_notes: str = ""
     part_of_speech: str = ""
+    # Telaffuz (açık sözlük kaynaklarından gelir; AI üretiminde boş kalabilir).
+    phonetic: str = ""
+    audio_url: str = ""
     status: WordStatus = WordStatus.NEW
     is_favorite: bool = False
     tags: list[str] = field(default_factory=list)
@@ -239,6 +242,8 @@ class Word:
             "example_sentences": self.example_sentences,
             "usage_notes": self.usage_notes,
             "part_of_speech": self.part_of_speech,
+            "phonetic": self.phonetic,
+            "audio_url": self.audio_url,
             "status": self.status.value,
             "is_favorite": self.is_favorite,
             "tags": self.tags,
@@ -267,6 +272,8 @@ class Word:
             example_sentences=data.get("example_sentences", []),
             usage_notes=data.get("usage_notes", ""),
             part_of_speech=data.get("part_of_speech", ""),
+            phonetic=data.get("phonetic", ""),
+            audio_url=data.get("audio_url", ""),
             status=WordStatus(data.get("status", "new")),
             is_favorite=data.get("is_favorite", False),
             tags=data.get("tags", []),

@@ -124,7 +124,7 @@ class AddWordDialog(QDialog):
         form.addLayout(row1)
 
         # ── Generate Button ──
-        self._generate_btn = QPushButton("  ✨  AI ile İçerik Üret")
+        self._generate_btn = QPushButton("  ✨  İçerik Üret")
         self._generate_btn.setObjectName("primaryBtn")
         self._generate_btn.setMinimumHeight(44)
         self._generate_btn.setEnabled(False)
@@ -244,11 +244,13 @@ class AddWordDialog(QDialog):
             return
 
         lang_code = self._lang_combo.currentData()
-        self._loading.show_loading(f"'{term}' için içerik üretiliyor...")
+        self._loading.show_loading(
+            f"'{term}' için içerik üretiliyor ({self._service.content_source})..."
+        )
         self._generate_btn.setEnabled(False)
 
         self._ai_worker = TaskWorker(
-            lambda: self._service.generate_ai_content(term, lang_code), parent=self
+            lambda: self._service.generate_content(term, lang_code), parent=self
         )
         self._ai_worker.succeeded.connect(self._on_ai_finished)
         self._ai_worker.failed.connect(self._on_ai_error)

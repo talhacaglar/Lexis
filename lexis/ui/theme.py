@@ -520,6 +520,12 @@ QLabel#detailTerm {{
     letter-spacing: -0.5px;
 }}
 
+QLabel#detailPhonetic {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 15px;
+    font-family: monospace;
+}}
+
 QLabel#detailShortDef {{
     color: {Colors.TEXT_SECONDARY};
     font-size: 15px;

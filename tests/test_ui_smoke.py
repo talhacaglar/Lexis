@@ -14,25 +14,20 @@ from PyQt6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 from lexis.domain.models import Word  # noqa: E402
 from lexis.persistence.word_repository import WordRepository  # noqa: E402
-from lexis.services.export_service import ExportService  # noqa: E402
-from lexis.services.word_service import WordService  # noqa: E402
 from lexis.ui.theme import Colors, apply_theme, get_stylesheet, set_theme  # noqa: E402
 from lexis.ui.widgets.common import StatusBadge  # noqa: E402
 from lexis.ui.windows.main_window import (  # noqa: E402
     PAGE_DASHBOARD,
     PAGE_LIBRARY,
     PAGE_SETTINGS,
-    MainWindow,
 )
 
 
-@pytest.fixture
-def window(qtbot, word_service: WordService, export_service: ExportService):
+@pytest.fixture(autouse=True)
+def _restore_dark_theme():
+    """Tema değiştiren testler diğerlerini etkilemesin."""
+    yield
     set_theme("dark")
-    apply_theme(QApplication.instance())
-    w = MainWindow(word_service=word_service, export_service=export_service)
-    qtbot.addWidget(w)
-    return w
 
 
 def test_main_window_builds(window):

@@ -13,6 +13,7 @@ from lexis.domain.exceptions import DuplicateWordError
 from lexis.domain.models import ReviewGrade, Word, WordStats, WordStatus
 from lexis.persistence.word_repository import WordRepository
 from lexis.services.ai_service import AIService
+from lexis.services.open_dictionary import OpenDictionaryService
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,17 @@ logger = logging.getLogger(__name__)
 class WordService:
     """Kelime ekleme, güncelleme ve sorgulama iş mantığı."""
 
-    def __init__(self, repository: WordRepository, ai_service: AIService) -> None:
+    def __init__(
+        self,
+        repository: WordRepository,
+        ai_service: AIService,
+        open_dictionary: OpenDictionaryService | None = None,
+    ) -> None:
         self._repo = repository
         self._ai = ai_service
+        # Anahtar girilmemişse içerik açık sözlüklerden derlenir; uygulama
+        # kutudan çıktığı gibi çalışsın diye varsayılan sağlayıcı budur.
+        self._open_dict = open_dictionary or OpenDictionaryService()
 
     # ── Sorgulama ─────────────────────────────────────────────────────────
 
@@ -118,14 +127,7 @@ class WordService:
         word = Word(term=term, language=language)
 
         if ai_data:
-            word.definition = ai_data.get("definition", "")
-            word.definition_short = ai_data.get("definition_short", "")
-            word.part_of_speech = ai_data.get("part_of_speech", "")
-            word.synonyms = ai_data.get("synonyms", [])
-            word.antonyms = ai_data.get("antonyms", [])
-            word.example_sentences = ai_data.get("example_sentences", [])
-            word.usage_notes = ai_data.get("usage_notes", "")
-            word.ai_generated = True
+            self.apply_content(word, ai_data)
 
         return self._repo.create(word)
 
@@ -203,27 +205,49 @@ class WordService:
 
     # ── AI Üretim ─────────────────────────────────────────────────────────
 
-    def generate_ai_content(self, term: str, language: str = "en") -> dict:
+    def generate_content(self, term: str, language: str = "en") -> dict:
         """
-        AI ile kelime içeriği üretir.
-        Bu metot doğrudan çağrılırsa UI'ı bloklar;
-        QThread worker üzerinden çağrılması önerilir.
+        Kelime içeriği üretir.
+
+        Gemini anahtarı varsa onu kullanır (daha akıcı Türkçe ve kullanım notu);
+        yoksa açık sözlük kaynaklarına düşer. Böylece uygulama anahtarsız da
+        çalışır.
+
+        Bu metot ağ çağrısı yapar ve doğrudan çağrılırsa UI'ı bloklar;
+        TaskWorker üzerinden çağrılması gerekir.
         """
-        return self._ai.generate_word_data(term, language)
+        provider = self._ai if self._ai.is_configured else self._open_dict
+        return provider.generate_word_data(term, language)
+
+    # Eski ad; UI ve testler kademeli geçsin diye korunuyor.
+    generate_ai_content = generate_content
 
     def regenerate_ai_content(self, word_id: str) -> Word:
-        """Mevcut kelimenin AI içeriğini yeniler."""
+        """Mevcut kelimenin içeriğini yeniden üretir."""
         word = self._repo.get_by_id(word_id)
-        ai_data = self._ai.generate_word_data(word.term, word.language)
-        word.definition = ai_data.get("definition", word.definition)
-        word.definition_short = ai_data.get("definition_short", word.definition_short)
-        word.part_of_speech = ai_data.get("part_of_speech", word.part_of_speech)
-        word.synonyms = ai_data.get("synonyms", word.synonyms)
-        word.antonyms = ai_data.get("antonyms", word.antonyms)
-        word.example_sentences = ai_data.get("example_sentences", word.example_sentences)
-        word.usage_notes = ai_data.get("usage_notes", word.usage_notes)
-        word.ai_generated = True
+        data = self.generate_content(word.term, word.language)
+        self.apply_content(word, data)
         return self._repo.update(word)
+
+    @staticmethod
+    def apply_content(word: Word, data: dict) -> Word:
+        """
+        Üretilen içeriği Word üzerine uygular.
+
+        Eksik alanlar mevcut değeri korur: açık sözlük bazı alanları (ör.
+        kullanım notu) boş bırakabilir, bu mevcut içeriği silmemeli.
+        """
+        word.definition = data.get("definition") or word.definition
+        word.definition_short = data.get("definition_short") or word.definition_short
+        word.part_of_speech = data.get("part_of_speech") or word.part_of_speech
+        word.synonyms = data.get("synonyms") or word.synonyms
+        word.antonyms = data.get("antonyms") or word.antonyms
+        word.example_sentences = data.get("example_sentences") or word.example_sentences
+        word.usage_notes = data.get("usage_notes") or word.usage_notes
+        word.phonetic = data.get("phonetic") or word.phonetic
+        word.audio_url = data.get("audio_url") or word.audio_url
+        word.ai_generated = True
+        return word
 
     def configure_ai(self, api_key: str) -> None:
         """AI istemcisini yeni API anahtarıyla yeniden yapılandırır."""
@@ -231,4 +255,10 @@ class WordService:
 
     @property
     def ai_configured(self) -> bool:
+        """Gemini anahtarı girilmiş mi? (İçerik üretimi buna bağlı değildir.)"""
         return self._ai.is_configured
+
+    @property
+    def content_source(self) -> str:
+        """Şu an hangi kaynağın kullanılacağını bildirir (UI'da gösterilir)."""
+        return "Gemini" if self._ai.is_configured else "Açık sözlük"

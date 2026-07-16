@@ -140,11 +140,22 @@ class SettingsView(QWidget):
         appearance_section.add_layout(theme_row)
         layout.addWidget(appearance_section)
 
+        # ── İçerik kaynağı ──
+        source_section = SettingsSection("📚  İçerik Kaynağı")
+        self._source_label = QLabel("")
+        self._source_label.setWordWrap(True)
+        self._source_label.setObjectName("descText")
+        source_section.add_widget(self._source_label)
+        layout.addWidget(source_section)
+        self._refresh_source_label()
+
         # ── API Key Section ──
-        api_section = SettingsSection("🔑  Gemini API Anahtarı")
+        api_section = SettingsSection("🔑  Gemini API Anahtarı (isteğe bağlı)")
 
         desc = QLabel(
-            "Google AI Studio'dan aldığınız API anahtarını buraya girin. "
+            "Anahtar girmeden de kelime ekleyebilirsiniz: içerik açık sözlük "
+            "kaynaklarından derlenir. Gemini anahtarı girerseniz tanımlar daha "
+            "akıcı Türkçe olur ve kullanım notu eklenir.\n\n"
             "Anahtar yalnızca yerel veritabanınızda (~/.lexis/lexis.db) saklanır."
         )
         desc.setWordWrap(True)
@@ -305,9 +316,24 @@ class SettingsView(QWidget):
             f"  ·  Favoriler: {stats.favorites}"
         )
 
+    def _refresh_source_label(self) -> None:
+        """Şu an hangi kaynağın kullanıldığını gösterir."""
+        if self._service.ai_configured:
+            self._source_label.setText(
+                "✨ Gemini — API anahtarınız tanımlı. Tanımlar yapay zekâ ile "
+                "üretiliyor: akıcı Türkçe, kullanım notları ve örnek cümleler."
+            )
+        else:
+            self._source_label.setText(
+                "📖 Açık sözlük — anahtar gerekmez. İçerik Wiktionary, "
+                "dictionaryapi.dev, Tatoeba ve MyMemory'den derlenir; telaffuz "
+                "da gelir. Tanımlar uydurma değil, gerçek sözlük kaydıdır."
+            )
+
     def refresh(self) -> None:
         """Ekrana her dönüşte güncel veriyi gösterir."""
         self._refresh_stats_label()
+        self._refresh_source_label()
 
     @staticmethod
     def _set_status(label: QLabel, message: str, level: str) -> None:
@@ -328,6 +354,7 @@ class SettingsView(QWidget):
             save_api_key(key)
             self._service.configure_ai(key)
             self._set_status(self._api_status, "✓ API anahtarı kaydedildi", "success")
+            self._refresh_source_label()
             self.settings_changed.emit()
         except Exception as e:
             logger.exception("API anahtarı kaydedilemedi")

@@ -31,6 +31,13 @@ class AIServiceError(LexisError):
         self.original = original
 
 
+class ContentProviderError(LexisError):
+    """Açık sözlük kaynaklarından içerik alınamadığında fırlatılır."""
+    def __init__(self, message: str, original: Exception | None = None):
+        super().__init__(message)
+        self.original = original
+
+
 class APIKeyMissingError(LexisError):
     """Gemini API anahtarı eksik olduğunda fırlatılır."""
     def __init__(self):

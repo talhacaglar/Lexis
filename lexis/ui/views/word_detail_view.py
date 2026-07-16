@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import logging
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -70,7 +70,7 @@ class WordDetailView(QWidget):
         nav_layout.addWidget(back_btn)
         nav_layout.addStretch()
 
-        self._regen_btn = QPushButton("✨ AI ile Yenile")
+        self._regen_btn = QPushButton("✨ İçeriği Yenile")
         self._regen_btn.setObjectName("secondaryBtn")
         self._regen_btn.setFixedHeight(34)
         self._regen_btn.clicked.connect(self._regenerate_ai)
@@ -119,6 +119,24 @@ class WordDetailView(QWidget):
         term_row.addWidget(self._fav_btn)
 
         header_layout.addLayout(term_row)
+
+        # Telaffuz: fonetik yazım + varsa ses çalma butonu
+        pron_row = QHBoxLayout()
+        pron_row.setSpacing(8)
+        self._phonetic_label = QLabel()
+        self._phonetic_label.setObjectName("detailPhonetic")
+        pron_row.addWidget(self._phonetic_label)
+
+        self._audio_btn = QPushButton("🔊")
+        self._audio_btn.setObjectName("iconBtn")
+        self._audio_btn.setFixedSize(30, 30)
+        self._audio_btn.setToolTip("Telaffuzu dinle")
+        self._audio_btn.setAccessibleName("Telaffuzu dinle")
+        self._audio_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._audio_btn.clicked.connect(self._play_audio)
+        pron_row.addWidget(self._audio_btn)
+        pron_row.addStretch()
+        header_layout.addLayout(pron_row)
 
         # Badges row: language + POS + status
         self._badges_row = QHBoxLayout()
@@ -312,6 +330,14 @@ class WordDetailView(QWidget):
         self._fav_btn.setProperty("active", "true" if w.is_favorite else "false")
         repolish(self._fav_btn)
 
+        # Kullanıcı içeriğin nereden geleceğini bilsin.
+        self._regen_btn.setToolTip(f"İçeriği yeniden üret ({self._service.content_source})")
+
+        # Telaffuz yalnızca kaynakta varsa gösterilir.
+        self._phonetic_label.setText(w.phonetic)
+        self._phonetic_label.setVisible(bool(w.phonetic))
+        self._audio_btn.setVisible(bool(w.audio_url))
+
         # Badges
         self._lang_badge.setText(w.language_display)
         self._pos_badge.setText(w.part_of_speech or "")
@@ -451,23 +477,18 @@ class WordDetailView(QWidget):
     def _regenerate_ai(self) -> None:
         if not self._word:
             return
-        if not self._service.ai_configured:
-            QMessageBox.warning(
-                self,
-                "API Anahtarı Yok",
-                "Lütfen Ayarlar'dan Gemini API anahtarınızı girin.",
-            )
-            return
         # Süren bir üretim varken ikincisini başlatma.
         if self._ai_worker is not None and self._ai_worker.isRunning():
             return
 
         term, language = self._word.term, self._word.language
-        self._loading.show_loading(f"'{term}' için içerik yenileniyor...")
+        self._loading.show_loading(
+            f"'{term}' için içerik yenileniyor ({self._service.content_source})..."
+        )
         self._regen_btn.setEnabled(False)
 
         self._ai_worker = TaskWorker(
-            lambda: self._service.generate_ai_content(term, language), parent=self
+            lambda: self._service.generate_content(term, language), parent=self
         )
         self._ai_worker.succeeded.connect(self._on_regen_finished)
         self._ai_worker.failed.connect(self._on_regen_error)
@@ -480,21 +501,45 @@ class WordDetailView(QWidget):
             self._ai_worker.deleteLater()
             self._ai_worker = None
 
+    def _play_audio(self) -> None:
+        """
+        Telaffuz kaydını çalar.
+
+        QtMultimedia PyQt6 ile gelir ama çalışma anında bir ses arka ucu
+        (Linux'ta GStreamer) gerektirir; yoksa bağlantı sistemin varsayılan
+        oynatıcısına devredilir.
+        """
+        if not self._word or not self._word.audio_url:
+            return
+
+        url = QUrl(self._word.audio_url)
+        try:
+            from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+
+            # Oynatıcı referansı saklanmazsa çalmadan GC tarafından toplanır.
+            self._audio_output = QAudioOutput()
+            self._player = QMediaPlayer()
+            self._player.setAudioOutput(self._audio_output)
+            self._player.setSource(url)
+            self._player.play()
+        except Exception:
+            logger.info("QtMultimedia kullanılamadı; ses harici oynatıcıya devredildi.")
+            QDesktopServices.openUrl(url)
+
     def _on_regen_finished(self, data: dict) -> None:
         self._loading.hide_loading()
         self._regen_btn.setEnabled(True)
-        if self._word:
-            self._word.definition = data.get("definition", self._word.definition)
-            self._word.definition_short = data.get("definition_short", self._word.definition_short)
-            self._word.part_of_speech = data.get("part_of_speech", self._word.part_of_speech)
-            self._word.synonyms = data.get("synonyms", self._word.synonyms)
-            self._word.antonyms = data.get("antonyms", self._word.antonyms)
-            self._word.example_sentences = data.get("example_sentences", self._word.example_sentences)
-            self._word.usage_notes = data.get("usage_notes", self._word.usage_notes)
-            self._word.ai_generated = True
+        if not self._word:
+            return
+        try:
+            self._service.apply_content(self._word, data)
             self._word = self._service.update_word(self._word)
-            self._render_word()
-            self.word_updated.emit(self._word.id)
+        except Exception:
+            logger.exception("Yenilenen içerik kaydedilemedi: %s", self._word.id)
+            self.error_occurred.emit("Yenilenen içerik kaydedilemedi.")
+            return
+        self._render_word()
+        self.word_updated.emit(self._word.id)
 
     def _on_regen_error(self, message: str) -> None:
         self._loading.hide_loading()

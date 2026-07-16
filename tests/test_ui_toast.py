@@ -6,24 +6,12 @@ import pytest
 
 pytest.importorskip("PyQt6.QtWidgets")
 
-from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox  # noqa: E402
+from PyQt6.QtWidgets import QLabel, QMessageBox  # noqa: E402
 
 from lexis.domain.models import ReviewGrade, Word  # noqa: E402
 from lexis.persistence.word_repository import WordRepository  # noqa: E402
-from lexis.services.export_service import ExportService  # noqa: E402
 from lexis.services.word_service import WordService  # noqa: E402
-from lexis.ui.theme import apply_theme, set_theme  # noqa: E402
 from lexis.ui.widgets.toast import ToastManager  # noqa: E402
-from lexis.ui.windows.main_window import MainWindow  # noqa: E402
-
-
-@pytest.fixture
-def window(qtbot, word_service: WordService, export_service: ExportService):
-    set_theme("dark")
-    apply_theme(QApplication.instance())
-    w = MainWindow(word_service=word_service, export_service=export_service)
-    qtbot.addWidget(w)
-    return w
 
 
 @pytest.fixture

@@ -90,3 +90,85 @@ class TestWordServiceOperations:
         word_service.delete_word(word.id)
         results = word_service.get_all()
         assert all(w.id != word.id for w in results)
+
+
+class TestContentProviderSelection:
+    """Anahtar yoksa açık sözlüğe, varsa Gemini'ye gitmeli."""
+
+    def test_uses_open_dictionary_without_api_key(self, repo, ai_service):
+        fake = _RecordingProvider()
+        service = WordService(repo, ai_service, open_dictionary=fake)
+
+        assert service.ai_configured is False
+        assert service.content_source == "Açık sözlük"
+
+        data = service.generate_content("ephemeral", "en")
+
+        assert fake.calls == [("ephemeral", "en")]
+        assert data["definition"] == "sahte tanım"
+
+    def test_uses_gemini_when_configured(self, repo, ai_service, monkeypatch):
+        fake_open = _RecordingProvider()
+        service = WordService(repo, ai_service, open_dictionary=fake_open)
+
+        monkeypatch.setattr(type(ai_service), "is_configured", property(lambda _: True))
+        monkeypatch.setattr(
+            ai_service, "generate_word_data", lambda t, lang: {"definition": "gemini tanımı"}
+        )
+
+        assert service.content_source == "Gemini"
+        data = service.generate_content("ephemeral", "en")
+
+        assert data["definition"] == "gemini tanımı"
+        assert fake_open.calls == []  # açık sözlüğe hiç gidilmemeli
+
+    def test_add_word_stores_pronunciation(self, repo, ai_service):
+        service = WordService(repo, ai_service, open_dictionary=_RecordingProvider())
+        data = service.generate_content("ephemeral", "en")
+
+        word = service.add_word("ephemeral", "en", ai_data=data)
+
+        saved = service.get_by_id(word.id)
+        assert saved.phonetic == "/təst/"
+        assert saved.audio_url == "https://example.org/a.mp3"
+
+
+class TestApplyContent:
+    def test_missing_fields_keep_existing_values(self, word_service: WordService):
+        """Açık sözlük bazı alanları boş bırakabilir; mevcut içeriği silmemeli."""
+        word = word_service.add_word("ephemeral", "en", ai_data={
+            "definition": "eski tanım",
+            "usage_notes": "eski not",
+            "synonyms": ["a", "b"],
+        })
+
+        word_service.apply_content(word, {"definition": "yeni tanım", "usage_notes": ""})
+
+        assert word.definition == "yeni tanım"
+        assert word.usage_notes == "eski not"
+        assert word.synonyms == ["a", "b"]
+
+
+class _RecordingProvider:
+    """Ağa çıkmayan sahte sağlayıcı; hangi çağrıların yapıldığını kaydeder."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    @property
+    def is_configured(self) -> bool:
+        return True
+
+    def generate_word_data(self, term: str, language: str = "en") -> dict:
+        self.calls.append((term, language))
+        return {
+            "definition": "sahte tanım",
+            "definition_short": "sahte",
+            "part_of_speech": "noun",
+            "synonyms": [],
+            "antonyms": [],
+            "example_sentences": [],
+            "usage_notes": "",
+            "phonetic": "/təst/",
+            "audio_url": "https://example.org/a.mp3",
+        }

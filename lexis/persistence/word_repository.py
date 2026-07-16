@@ -85,6 +85,8 @@ def _row_to_word(row) -> Word:
         example_sentences=json.loads(row["example_sentences"] or "[]"),
         usage_notes=row["usage_notes"] or "",
         part_of_speech=row["part_of_speech"] or "",
+        phonetic=row["phonetic"] or "",
+        audio_url=row["audio_url"] or "",
         status=WordStatus(row["status"]),
         is_favorite=bool(row["is_favorite"]),
         tags=json.loads(row["tags"] or "[]"),
@@ -117,6 +119,8 @@ def _word_to_params(word: Word) -> dict:
         "example_sentences": json.dumps(word.example_sentences, ensure_ascii=False),
         "usage_notes": word.usage_notes,
         "part_of_speech": word.part_of_speech,
+        "phonetic": word.phonetic,
+        "audio_url": word.audio_url,
         "status": word.status.value,
         "is_favorite": int(word.is_favorite),
         "tags": json.dumps(word.tags, ensure_ascii=False),
@@ -174,13 +178,13 @@ INSERT_WORD_SQL = """
 INSERT INTO words (
     id, term, language, definition, definition_short,
     synonyms, antonyms, example_sentences, usage_notes,
-    part_of_speech, status, is_favorite, tags, ai_generated,
+    part_of_speech, phonetic, audio_url, status, is_favorite, tags, ai_generated,
     created_at, updated_at, last_reviewed_at, review_count,
     ease_factor, interval_days, repetitions, due_at
 ) VALUES (
     :id, :term, :language, :definition, :definition_short,
     :synonyms, :antonyms, :example_sentences, :usage_notes,
-    :part_of_speech, :status, :is_favorite, :tags, :ai_generated,
+    :part_of_speech, :phonetic, :audio_url, :status, :is_favorite, :tags, :ai_generated,
     :created_at, :updated_at, :last_reviewed_at, :review_count,
     :ease_factor, :interval_days, :repetitions, :due_at
 )

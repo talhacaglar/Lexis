@@ -14,7 +14,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 CREATE_WORDS_TABLE = """
 CREATE TABLE IF NOT EXISTS words (
@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS words (
     example_sentences TEXT NOT NULL DEFAULT '[]',
     usage_notes       TEXT NOT NULL DEFAULT '',
     part_of_speech    TEXT NOT NULL DEFAULT '',
+    phonetic          TEXT NOT NULL DEFAULT '',
+    audio_url         TEXT NOT NULL DEFAULT '',
     status            TEXT NOT NULL DEFAULT 'new',
     is_favorite       INTEGER NOT NULL DEFAULT 0,
     tags              TEXT NOT NULL DEFAULT '[]',
@@ -49,6 +51,12 @@ WORDS_COLUMN_MIGRATIONS: dict[str, str] = {
     "interval_days": "INTEGER NOT NULL DEFAULT 0",
     "repetitions": "INTEGER NOT NULL DEFAULT 0",
     "due_at": "TEXT",
+}
+
+# v3 → v4 ile eklenen telaffuz sütunları.
+PRONUNCIATION_MIGRATIONS: dict[str, str] = {
+    "phonetic": "TEXT NOT NULL DEFAULT ''",
+    "audio_url": "TEXT NOT NULL DEFAULT ''",
 }
 
 CREATE_SETTINGS_TABLE = """
@@ -89,13 +97,20 @@ CREATE TABLE IF NOT EXISTS schema_version (
 """
 
 
+def _add_missing_columns(
+    conn: sqlite3.Connection, columns: dict[str, str], label: str
+) -> None:
+    """words tablosunda eksik sütunları ekler (idempotent)."""
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(words)")}
+    for column, definition in columns.items():
+        if column not in existing:
+            logger.info("Migration %s: words.%s sütunu ekleniyor", label, column)
+            conn.execute(f"ALTER TABLE words ADD COLUMN {column} {definition}")
+
+
 def _migrate_v2(conn: sqlite3.Connection) -> None:
     """v1 → v2: aralıklı tekrar (SM-2) sütunlarını ekler."""
-    existing = {row["name"] for row in conn.execute("PRAGMA table_info(words)")}
-    for column, definition in WORDS_COLUMN_MIGRATIONS.items():
-        if column not in existing:
-            logger.info("Migration v2: words.%s sütunu ekleniyor", column)
-            conn.execute(f"ALTER TABLE words ADD COLUMN {column} {definition}")
+    _add_missing_columns(conn, WORDS_COLUMN_MIGRATIONS, "v2")
 
 
 def _migrate_v3(conn: sqlite3.Connection) -> None:
@@ -104,11 +119,17 @@ def _migrate_v3(conn: sqlite3.Connection) -> None:
     conn.execute(CREATE_REVIEW_LOG_TABLE)
 
 
+def _migrate_v4(conn: sqlite3.Connection) -> None:
+    """v3 → v4: telaffuz (fonetik + ses) sütunlarını ekler."""
+    _add_missing_columns(conn, PRONUNCIATION_MIGRATIONS, "v4")
+
+
 # Sürüm anahtarlı migration zinciri: saklı sürümden SCHEMA_VERSION'a kadar
 # sırayla uygulanır. Her adım idempotent olmalıdır.
 MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {
     2: _migrate_v2,
     3: _migrate_v3,
+    4: _migrate_v4,
 }
 
 

@@ -259,6 +259,37 @@ def test_migration_v2_to_v3_adds_review_log(tmp_path):
     assert WordRepository(reopened).get_all()[0].term == "kalici"
 
 
+def test_migration_v3_to_v4_adds_pronunciation_columns(tmp_path):
+    """v3 (telaffuzsuz) bir DB açıldığında sütunlar eklenmeli, veri korunmalı."""
+    db_file = tmp_path / "v3.db"
+    db = Database(db_file)
+    repo = WordRepository(db)
+    repo.create(Word(term="korunacak", language="en", definition="tanım"))
+
+    # v3'e geri sar: telaffuz sütunlarını düşür, sürümü 3 yap.
+    with db.connection() as c:
+        c.execute("ALTER TABLE words DROP COLUMN phonetic")
+        c.execute("ALTER TABLE words DROP COLUMN audio_url")
+        c.execute("DELETE FROM schema_version")
+        c.execute("INSERT INTO schema_version (version) VALUES (3)")
+        c.commit()
+
+    reopened = WordRepository(Database(db_file))
+    word = reopened.get_all()[0]
+
+    assert word.term == "korunacak"
+    assert word.definition == "tanım"
+    assert word.phonetic == ""  # yeni sütun varsayılanla geldi
+    assert word.audio_url == ""
+
+
+def test_pronunciation_round_trips(repo: WordRepository):
+    repo.create(Word(term="ephemeral", language="en", phonetic="/əˈfɛmərəl/", audio_url="https://x/a.mp3"))
+    saved = repo.get_all()[0]
+    assert saved.phonetic == "/əˈfɛmərəl/"
+    assert saved.audio_url == "https://x/a.mp3"
+
+
 def test_migrations_are_idempotent_on_reopen(tmp_path):
     """Güncel bir DB tekrar tekrar açıldığında veri bozulmamalı."""
     db_file = tmp_path / "current.db"
