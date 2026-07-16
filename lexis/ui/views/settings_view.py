@@ -6,6 +6,7 @@ API anahtarı, import/export ve uygulama ayarları.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -24,7 +25,10 @@ from PyQt6.QtWidgets import (
 from lexis.config.settings import get_settings, save_api_key, save_theme
 from lexis.services.export_service import ExportService
 from lexis.services.word_service import WordService
-from lexis.ui.theme import Colors
+from lexis.ui.theme import repolish
+from lexis.ui.widgets.common import Divider
+
+logger = logging.getLogger(__name__)
 
 
 class SettingsSection(QWidget):
@@ -43,17 +47,10 @@ class SettingsSection(QWidget):
         self._inner.setSpacing(16)
 
         title_lbl = QLabel(title)
-        title_lbl.setStyleSheet(f"""
-            color: {Colors.TEXT_PRIMARY};
-            font-size: 14px;
-            font-weight: 600;
-        """)
+        title_lbl.setObjectName("cardTitle")
         self._inner.addWidget(title_lbl)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height:1px;")
-        self._inner.addWidget(sep)
+        self._inner.addWidget(Divider())
 
         layout.addWidget(container)
 
@@ -88,16 +85,12 @@ class SettingsView(QWidget):
 
         # ── Top Bar ──
         topbar = QWidget()
+        topbar.setObjectName("topbar")
         topbar.setFixedHeight(72)
-        topbar.setStyleSheet(f"background: {Colors.BG_BASE};")
         tb_layout = QHBoxLayout(topbar)
         tb_layout.setContentsMargins(36, 0, 36, 0)
         title = QLabel("Ayarlar")
-        title.setStyleSheet(f"""
-            color: {Colors.TEXT_PRIMARY};
-            font-size: 22px;
-            font-weight: 700;
-        """)
+        title.setObjectName("pageTitle")
         tb_layout.addWidget(title)
         tb_layout.addStretch()
         root.addWidget(topbar)
@@ -109,7 +102,7 @@ class SettingsView(QWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         content = QWidget()
-        content.setStyleSheet(f"background: {Colors.BG_BASE};")
+        content.setObjectName("contentSurface")
         layout = QVBoxLayout(content)
         layout.setContentsMargins(36, 12, 36, 48)
         layout.setSpacing(20)
@@ -117,7 +110,7 @@ class SettingsView(QWidget):
         # ── Appearance Section ──
         appearance_section = SettingsSection("🎨  Görünüm")
         app_desc = QLabel("Uygulama temasını seçin.")
-        app_desc.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: 13px;")
+        app_desc.setObjectName("descText")
         appearance_section.add_widget(app_desc)
 
         theme_row = QHBoxLayout()
@@ -136,17 +129,11 @@ class SettingsView(QWidget):
         theme_row.addWidget(self._light_btn)
         theme_row.addStretch()
 
+        # Seçili tema birincil buton olarak vurgulanır; renkleri #primaryBtn
+        # QSS kuralından gelir.
         active_theme = get_settings().app_theme
-        selected_style = (
-            f"background-color: {Colors.BTN_BG}; color: {Colors.BTN_TEXT}; "
-            "border: none; font-weight: 600;"
-        )
-        if active_theme == "light":
-            self._light_btn.setObjectName("primaryBtn")
-            self._light_btn.setStyleSheet(selected_style)
-        else:
-            self._dark_btn.setObjectName("primaryBtn")
-            self._dark_btn.setStyleSheet(selected_style)
+        selected = self._light_btn if active_theme == "light" else self._dark_btn
+        selected.setObjectName("primaryBtn")
 
         appearance_section.add_layout(theme_row)
         layout.addWidget(appearance_section)
@@ -159,7 +146,7 @@ class SettingsView(QWidget):
             "Anahtar yalnızca yerel veritabanınızda (~/.lexis/lexis.db) saklanır."
         )
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: 13px; line-height: 1.6;")
+        desc.setObjectName("descText")
         api_section.add_widget(desc)
 
         api_row = QHBoxLayout()
@@ -191,12 +178,17 @@ class SettingsView(QWidget):
         api_section.add_layout(api_row)
 
         self._api_status = QLabel("")
-        self._api_status.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 12px;")
+        self._api_status.setObjectName("statusText")
         api_section.add_widget(self._api_status)
 
-        link = QLabel(f'<a href="https://aistudio.google.com/app/apikey" style="color: {Colors.ACCENT_LIGHT};">API anahtarı almak için Google AI Studio\'yu ziyaret edin →</a>')
+        # Bağlantı rengi uygulama paletinden (ColorRole.Link) gelir; rich text
+        # anchor'ları QSS color'ını almadığı için tema değişiminde palet güncellenir.
+        link = QLabel(
+            '<a href="https://aistudio.google.com/app/apikey">'
+            "API anahtarı almak için Google AI Studio'yu ziyaret edin →</a>"
+        )
         link.setOpenExternalLinks(True)
-        link.setStyleSheet("font-size: 12px;")
+        link.setObjectName("mutedText")
         api_section.add_widget(link)
 
         layout.addWidget(api_section)
@@ -206,17 +198,14 @@ class SettingsView(QWidget):
 
         db_path = get_settings().db_path
         db_info = QLabel(f"Konum: {db_path}")
-        db_info.setStyleSheet(f"""
-            color: {Colors.TEXT_SECONDARY};
-            font-size: 12px;
-            font-family: monospace;
-        """)
+        db_info.setObjectName("monoText")
         db_section.add_widget(db_info)
 
-        stats = self._service.get_stats()
-        stats_label = QLabel(f"Toplam kelime: {stats.total}  ·  Öğrenilen: {stats.learned}  ·  Favoriler: {stats.favorites}")
-        stats_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 13px;")
-        db_section.add_widget(stats_label)
+        # Ekrana her dönüşte tazelenebilmesi için referansı saklanır.
+        self._stats_label = QLabel("")
+        self._stats_label.setObjectName("descText")
+        db_section.add_widget(self._stats_label)
+        self._refresh_stats_label()
 
         layout.addWidget(db_section)
 
@@ -225,7 +214,7 @@ class SettingsView(QWidget):
 
         export_desc = QLabel("Tüm kelimelerinizi JSON veya CSV formatında dışa aktarın.")
         export_desc.setWordWrap(True)
-        export_desc.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: 13px;")
+        export_desc.setObjectName("descText")
         export_section.add_widget(export_desc)
 
         export_row = QHBoxLayout()
@@ -234,20 +223,20 @@ class SettingsView(QWidget):
         json_export_btn = QPushButton("JSON Olarak İndir")
         json_export_btn.setObjectName("secondaryBtn")
         json_export_btn.setMinimumHeight(40)
-        json_export_btn.clicked.connect(self._export_json)
+        json_export_btn.clicked.connect(lambda: self._run_export("json"))
         export_row.addWidget(json_export_btn)
 
         csv_export_btn = QPushButton("CSV Olarak İndir")
         csv_export_btn.setObjectName("secondaryBtn")
         csv_export_btn.setMinimumHeight(40)
-        csv_export_btn.clicked.connect(self._export_csv)
+        csv_export_btn.clicked.connect(lambda: self._run_export("csv"))
         export_row.addWidget(csv_export_btn)
         export_row.addStretch()
 
         export_section.add_layout(export_row)
 
         self._export_status = QLabel("")
-        self._export_status.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 12px;")
+        self._export_status.setObjectName("statusText")
         export_section.add_widget(self._export_status)
 
         layout.addWidget(export_section)
@@ -257,7 +246,7 @@ class SettingsView(QWidget):
 
         import_desc = QLabel("Daha önce dışa aktardığınız JSON veya CSV dosyasından içe aktarın.")
         import_desc.setWordWrap(True)
-        import_desc.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: 13px;")
+        import_desc.setObjectName("descText")
         import_section.add_widget(import_desc)
 
         import_row = QHBoxLayout()
@@ -266,20 +255,20 @@ class SettingsView(QWidget):
         json_import_btn = QPushButton("JSON Dosyası Seç")
         json_import_btn.setObjectName("secondaryBtn")
         json_import_btn.setMinimumHeight(40)
-        json_import_btn.clicked.connect(self._import_json)
+        json_import_btn.clicked.connect(lambda: self._run_import("json"))
         import_row.addWidget(json_import_btn)
 
         csv_import_btn = QPushButton("CSV Dosyası Seç")
         csv_import_btn.setObjectName("secondaryBtn")
         csv_import_btn.setMinimumHeight(40)
-        csv_import_btn.clicked.connect(self._import_csv)
+        csv_import_btn.clicked.connect(lambda: self._run_import("csv"))
         import_row.addWidget(csv_import_btn)
         import_row.addStretch()
 
         import_section.add_layout(import_row)
 
         self._import_status = QLabel("")
-        self._import_status.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 12px;")
+        self._import_status.setObjectName("statusText")
         import_section.add_widget(self._import_status)
 
         layout.addWidget(import_section)
@@ -291,11 +280,7 @@ class SettingsView(QWidget):
             "Sürüm 0.1.0  ·  Python & PyQt6\n"
             "Verileriniz tamamen lokal olarak saklanır."
         )
-        about_text.setStyleSheet(f"""
-            color: {Colors.TEXT_SECONDARY};
-            font-size: 13px;
-            line-height: 1.8;
-        """)
+        about_text.setObjectName("descText")
         about_section.add_widget(about_text)
         layout.addWidget(about_section)
 
@@ -311,76 +296,87 @@ class SettingsView(QWidget):
             self._api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
             self._show_btn.setText("Göster")
 
+    def _refresh_stats_label(self) -> None:
+        stats = self._service.get_stats()
+        self._stats_label.setText(
+            f"Toplam kelime: {stats.total}  ·  Öğrenilen: {stats.learned}"
+            f"  ·  Favoriler: {stats.favorites}"
+        )
+
+    def refresh(self) -> None:
+        """Ekrana her dönüşte güncel veriyi gösterir."""
+        self._refresh_stats_label()
+
+    @staticmethod
+    def _set_status(label: QLabel, message: str, level: str) -> None:
+        """
+        Durum etiketini günceller. Renk, QSS'teki #statusText[level="..."]
+        kuralından gelir; böylece tema değişiminde kendiliğinden yeniden boyanır.
+        """
+        label.setText(message)
+        label.setProperty("level", level)
+        repolish(label)
+
     def _save_api_key(self) -> None:
         key = self._api_key_input.text().strip()
         if not key:
-            self._api_status.setText("API anahtarı boş olamaz.")
-            self._api_status.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
+            self._set_status(self._api_status, "API anahtarı boş olamaz.", "error")
             return
         try:
             save_api_key(key)
-            self._service._ai.configure(key)
-            self._api_status.setText("✓ API anahtarı kaydedildi")
-            self._api_status.setStyleSheet(f"color: {Colors.SUCCESS}; font-size: 12px;")
+            self._service.configure_ai(key)
+            self._set_status(self._api_status, "✓ API anahtarı kaydedildi", "success")
             self.settings_changed.emit()
         except Exception as e:
-            self._api_status.setText(f"Hata: {e}")
-            self._api_status.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
+            logger.exception("API anahtarı kaydedilemedi")
+            self._set_status(self._api_status, f"Hata: {e}", "error")
 
-    def _export_json(self) -> None:
+    def _run_export(self, fmt: str) -> None:
+        """JSON/CSV dışa aktarımını tek yerden yürütür."""
         path, _ = QFileDialog.getSaveFileName(
-            self, "JSON Dışa Aktar", "lexis_export.json", "JSON Dosyaları (*.json)"
+            self,
+            f"{fmt.upper()} Dışa Aktar",
+            f"lexis_export.{fmt}",
+            f"{fmt.upper()} Dosyaları (*.{fmt})",
         )
-        if path:
-            try:
-                count = self._export.export_json(Path(path))
-                self._export_status.setText(f"✓ {count} kelime dışa aktarıldı")
-                self._export_status.setStyleSheet(f"color: {Colors.SUCCESS}; font-size: 12px;")
-            except Exception as e:
-                self._export_status.setText(f"Hata: {e}")
-                self._export_status.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
+        if not path:
+            return
+        try:
+            export = self._export.export_json if fmt == "json" else self._export.export_csv
+            count = export(Path(path))
+            self._set_status(self._export_status, f"✓ {count} kelime dışa aktarıldı", "success")
+        except Exception as e:
+            logger.exception("Dışa aktarma başarısız (%s)", fmt)
+            self._set_status(self._export_status, f"Hata: {e}", "error")
 
-    def _export_csv(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(
-            self, "CSV Dışa Aktar", "lexis_export.csv", "CSV Dosyaları (*.csv)"
-        )
-        if path:
-            try:
-                count = self._export.export_csv(Path(path))
-                self._export_status.setText(f"✓ {count} kelime dışa aktarıldı")
-                self._export_status.setStyleSheet(f"color: {Colors.SUCCESS}; font-size: 12px;")
-            except Exception as e:
-                self._export_status.setText(f"Hata: {e}")
-                self._export_status.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
-
-    def _import_json(self) -> None:
+    def _run_import(self, fmt: str) -> None:
+        """JSON/CSV içe aktarımını tek yerden yürütür."""
         path, _ = QFileDialog.getOpenFileName(
-            self, "JSON İçe Aktar", "", "JSON Dosyaları (*.json)"
+            self, f"{fmt.upper()} İçe Aktar", "", f"{fmt.upper()} Dosyaları (*.{fmt})"
         )
-        if path:
-            try:
-                imported, skipped = self._export.import_json(Path(path))
-                self._import_status.setText(f"✓ {imported} kelime içe aktarıldı, {skipped} atlandı")
-                self._import_status.setStyleSheet(f"color: {Colors.SUCCESS}; font-size: 12px;")
-                self.settings_changed.emit()
-            except Exception as e:
-                self._import_status.setText(f"Hata: {e}")
-                self._import_status.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
-
-    def _import_csv(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, "CSV İçe Aktar", "", "CSV Dosyaları (*.csv)"
-        )
-        if path:
-            try:
-                imported, skipped = self._export.import_csv(Path(path))
-                self._import_status.setText(f"✓ {imported} kelime içe aktarıldı, {skipped} atlandı")
-                self._import_status.setStyleSheet(f"color: {Colors.SUCCESS}; font-size: 12px;")
-                self.settings_changed.emit()
-            except Exception as e:
-                self._import_status.setText(f"Hata: {e}")
-                self._import_status.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
+        if not path:
+            return
+        try:
+            do_import = self._export.import_json if fmt == "json" else self._export.import_csv
+            imported, skipped = do_import(Path(path))
+            self._set_status(
+                self._import_status,
+                f"✓ {imported} kelime içe aktarıldı, {skipped} atlandı",
+                "success",
+            )
+            self._refresh_stats_label()
+            self.settings_changed.emit()
+        except Exception as e:
+            logger.exception("İçe aktarma başarısız (%s)", fmt)
+            self._set_status(self._import_status, f"Hata: {e}", "error")
 
     def _trigger_theme_change(self, theme_name: str) -> None:
         save_theme(theme_name)
         self.theme_changed.emit(theme_name)
+        self._sync_theme_buttons(theme_name)
+
+    def _sync_theme_buttons(self, active_theme: str) -> None:
+        """Seçili temayı birincil buton olarak vurgular."""
+        for btn, name in ((self._dark_btn, "dark"), (self._light_btn, "light")):
+            btn.setObjectName("primaryBtn" if name == active_theme else "secondaryBtn")
+            repolish(btn)

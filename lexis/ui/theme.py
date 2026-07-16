@@ -6,6 +6,9 @@ Tüm renk, tipografi ve QSS stylesheet tanımları bu modülde merkezileştirilm
 
 from __future__ import annotations
 
+from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtWidgets import QWidget
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Renk Paleti Altyapısı
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,6 +157,37 @@ def STATUS_COLORS():
     }
 
 
+STATUS_KEYS = ("new", "learning", "learned", "needs_review")
+
+
+def _grade_button_rules() -> str:
+    """
+    Çalışma modundaki değerlendirme butonlarının renklerini üretir.
+
+    Renkler domain'deki ReviewGrade.color'dan gelir; tek kaynak orası kalsın
+    diye burada tekrar tanımlanmaz.
+    """
+    from lexis.domain.models import ReviewGrade
+
+    return "\n".join(
+        f'QPushButton#gradeBtn[grade="{g.name.lower()}"] {{ background-color: {g.color}; }}'
+        for g in ReviewGrade
+    )
+
+
+def _badge_status_rules() -> str:
+    """
+    Durum rozetlerinin renklerini QSS kuralı olarak üretir.
+
+    Renkler widget'a inline gömülmek yerine global stylesheet'e girdiği için
+    tema değişiminde pencere yeniden kurulmadan yeniden boyanabilirler.
+    """
+    return "\n".join(
+        f'QLabel#badge[status="{status}"] {{ background-color: {bg}; color: {text}; }}'
+        for status, (bg, text) in ((s, get_status_style(s)) for s in STATUS_KEYS)
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # QSS Stylesheet
 # ─────────────────────────────────────────────────────────────────────────────
@@ -190,10 +224,63 @@ QWidget#sidebar {{
 }}
 
 QLabel#appTitle {{
-    color: {Colors.TEXT_PRIMARY};
-    font-size: 17px;
+    color: {Colors.ACCENT_LIGHT};
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}}
+
+QLabel#appTagline {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}}
+
+/* Sidebar bölüm etiketi ("MENÜ") */
+QLabel#navSectionLabel {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+    padding: 8px 8px 4px 8px;
+}}
+
+/* Yükleme katmanı mesajı */
+QLabel#overlayMessage {{
+    color: {Colors.TEXT_SECONDARY};
+    font-size: 13px;
+    font-weight: 500;
+    background: transparent;
+}}
+
+/* Etiket rozeti (#tag) */
+QLabel#tagBadgeText {{
+    color: {Colors.ACCENT_LIGHT};
+    font-size: 11px;
+    font-weight: 600;
+    background: transparent;
+}}
+
+QWidget#tagBadge {{
+    background-color: {Colors.ACCENT_MUTED};
+    border-radius: 8px;
+    border: 1px solid {Colors.ACCENT};
+}}
+
+QPushButton#tagRemoveBtn {{
+    background: transparent;
+    color: {Colors.TEXT_MUTED};
+    border: none;
+    border-radius: 3px;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 0px;
+}}
+
+QPushButton#tagRemoveBtn:hover {{
+    color: {Colors.ERROR};
+    background: rgba(239, 68, 68, 0.15);
 }}
 
 QLabel#appSubTitle {{
@@ -414,6 +501,79 @@ QPushButton#favoriteBtn:hover {{
     background-color: {Colors.BG_HOVER};
 }}
 
+/* Detay ekranındaki büyük favori butonu */
+QPushButton#favoriteBtn[size="large"] {{
+    font-size: 22px;
+    border-radius: 10px;
+}}
+
+/* ── Kelime detay ekranı ── */
+QWidget#detailNavbar {{
+    background: {Colors.BG_SURFACE};
+    border-bottom: 1px solid {Colors.BORDER_SUBTLE};
+}}
+
+QLabel#detailTerm {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}}
+
+QLabel#detailShortDef {{
+    color: {Colors.TEXT_SECONDARY};
+    font-size: 15px;
+    font-style: italic;
+}}
+
+QLabel#detailDefinition {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 15px;
+}}
+
+QLabel#detailUsage {{
+    color: {Colors.TEXT_SECONDARY};
+    font-size: 14px;
+}}
+
+QLabel#detailLangBadge {{
+    background: {Colors.BG_ELEVATED};
+    color: {Colors.TEXT_SECONDARY};
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+}}
+
+QLabel#detailPosBadge {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 12px;
+    font-style: italic;
+    padding: 3px 6px;
+}}
+
+/* Örnek cümle satırları */
+QLabel#exampleNumber {{
+    color: {Colors.ACCENT};
+    font-weight: 700;
+    font-size: 14px;
+    min-width: 20px;
+    background: transparent;
+    border: none;
+}}
+
+QLabel#exampleForeign {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 14px;
+    font-weight: 500;
+}}
+
+QLabel#exampleTranslation {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 13px;
+    font-style: italic;
+}}
+
 QPushButton#filterChip {{
     background-color: {Colors.BG_ELEVATED};
     color: {Colors.TEXT_SECONDARY};
@@ -463,6 +623,20 @@ QLabel#heading1 {{
     font-weight: 700;
 }}
 
+/* Sayfa başlığı (topbar içindeki büyük başlık) */
+QLabel#pageTitle {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 22px;
+    font-weight: 700;
+}}
+
+/* Kart / bölüm başlığı */
+QLabel#cardTitle {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 14px;
+    font-weight: 600;
+}}
+
 QLabel#heading2 {{
     color: {Colors.TEXT_PRIMARY};
     font-size: 20px;
@@ -493,12 +667,252 @@ QLabel#mutedText {{
     font-size: 12px;
 }}
 
+/* Açıklama metni (ayar bölümlerindeki alt yazılar) */
+QLabel#descText {{
+    color: {Colors.TEXT_SECONDARY};
+    font-size: 13px;
+}}
+
+/* Dosya yolu gibi teknik metinler */
+QLabel#monoText {{
+    color: {Colors.TEXT_SECONDARY};
+    font-size: 12px;
+    font-family: monospace;
+}}
+
 QLabel#badge {{
     border-radius: 6px;
     padding: 3px 9px;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.3px;
+}}
+
+{_badge_status_rules()}
+
+/* ── Topbar (kütüphane / ayarlar / çalışma başlıkları) ── */
+QWidget#topbar {{
+    background-color: {Colors.BG_BASE};
+}}
+
+/* ── İçerik yüzeyi ── */
+QWidget#contentSurface {{
+    background-color: {Colors.BG_BASE};
+}}
+
+/* ── Arama ikonu ── */
+QLabel#searchIcon {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 16px;
+    background: transparent;
+}}
+
+/* ── Sayaç etiketi (ör. "12 kelime") ── */
+QLabel#countLabel {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 12px;
+}}
+
+/* ── Chip (etiket / meta rozet) ── */
+QLabel#chip {{
+    background-color: {Colors.BG_ELEVATED};
+    color: {Colors.TEXT_SECONDARY};
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+}}
+
+QLabel#chip[variant="accent"] {{
+    background-color: {Colors.ACCENT_MUTED};
+    color: {Colors.ACCENT};
+}}
+
+/* Zıt anlamlılar için uyarı tonu */
+QLabel#chip[variant="danger"] {{
+    background-color: {get_status_style("needs_review")[0]};
+    color: {get_status_style("needs_review")[1]};
+}}
+
+/* ── Durum metni (ayarlar ekranındaki geri bildirimler) ── */
+QLabel#statusText {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 12px;
+}}
+
+QLabel#statusText[level="success"] {{
+    color: {Colors.SUCCESS};
+}}
+
+QLabel#statusText[level="error"] {{
+    color: {Colors.ERROR};
+}}
+
+QLabel#statusText[level="info"] {{
+    color: {Colors.INFO};
+}}
+
+QLabel#statusText[level="warning"] {{
+    color: {Colors.WARNING};
+}}
+
+/* ── Çalışma (flashcard) modu ── */
+QLabel#practiceProgress {{
+    color: {Colors.TEXT_SECONDARY};
+    font-size: 13px;
+    font-weight: 600;
+}}
+
+QLabel#practiceTerm {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 34px;
+    font-weight: 800;
+}}
+
+QLabel#practiceMeta {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 13px;
+    font-weight: 500;
+}}
+
+QLabel#practiceDefinition {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 16px;
+}}
+
+QLabel#practiceExamples {{
+    color: {Colors.TEXT_SECONDARY};
+    font-size: 13px;
+}}
+
+QLabel#practiceDone {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 18px;
+}}
+
+/* Değerlendirme butonları (Tekrar / Zor / İyi / Kolay) */
+QPushButton#gradeBtn {{
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+}}
+
+{_grade_button_rules()}
+
+/* ── Kütüphane filtre çubuğu ── */
+QWidget#filterBar {{
+    background: {Colors.BG_SURFACE};
+    border-bottom: 1px solid {Colors.BORDER_SUBTLE};
+}}
+
+QWidget#searchContainer {{
+    background: {Colors.BG_ELEVATED};
+    border: none;
+    border-radius: 10px;
+}}
+
+QLineEdit#searchField {{
+    background: transparent;
+    border: none;
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 14px;
+    padding: 9px 0;
+}}
+
+/* ── Dashboard ── */
+QLabel#greeting {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 26px;
+    font-weight: 700;
+}}
+
+QLabel#dateLabel {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 13px;
+}}
+
+QLabel#statValue {{
+    font-size: 28px;
+    font-weight: 700;
+    color: {Colors.ACCENT};
+}}
+
+/* İstatistik kartının vurgu tonu (veriye göre seçilir) */
+QLabel#statValue[tone="accent"]   {{ color: {Colors.ACCENT_LIGHT}; }}
+QLabel#statValue[tone="review"]   {{ color: {Colors.STATUS_REVIEW}; }}
+QLabel#statValue[tone="warning"]  {{ color: {Colors.WARNING}; }}
+QLabel#statValue[tone="success"]  {{ color: {Colors.SUCCESS}; }}
+QLabel#statValue[tone="favorite"] {{ color: {Colors.FAVORITE}; }}
+QLabel#statValue[tone="streak"]   {{ color: {Colors.STATUS_LEARNING}; }}
+
+QLabel#statLabel {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}}
+
+/* Boş durum metni */
+QLabel#emptyState {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 14px;
+    padding: 60px 0;
+}}
+
+/* ── Word Card ── */
+QLabel#cardTerm {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}}
+
+QLabel#langBadge {{
+    background-color: {Colors.BG_ELEVATED};
+    color: {Colors.TEXT_MUTED};
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}}
+
+QLabel#posBadge {{
+    color: {Colors.TEXT_MUTED};
+    font-size: 11px;
+    font-style: italic;
+}}
+
+QLabel#cardPreview {{
+    color: {Colors.TEXT_SECONDARY};
+    font-size: 13px;
+}}
+
+QLabel#cardTag {{
+    color: {Colors.ACCENT};
+    font-size: 10px;
+    font-weight: 500;
+}}
+
+/* ── Context Menu ── */
+QMenu {{
+    background-color: {Colors.BG_SURFACE};
+    color: {Colors.TEXT_PRIMARY};
+    border: 1px solid {Colors.BORDER_SUBTLE};
+    border-radius: 6px;
+    padding: 4px;
+}}
+
+QMenu::item {{
+    padding: 6px 24px 6px 12px;
+    border-radius: 4px;
+}}
+
+QMenu::item:selected {{
+    background-color: {Colors.ERROR};
+    color: white;
 }}
 
 /* ── Scroll Area ── */
@@ -546,10 +960,50 @@ QFrame#separator {{
     min-height: 1px;
 }}
 
+QFrame#separator[spaced="true"] {{
+    margin-bottom: 8px;
+}}
+
 /* ── Dialog ── */
 QDialog {{
     background-color: {Colors.BG_SURFACE};
     border-radius: 16px;
+}}
+
+QWidget#dialogHeader {{
+    background-color: {Colors.BG_ELEVATED};
+    border-bottom: 1px solid {Colors.BORDER_SUBTLE};
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+}}
+
+QWidget#dialogFooter {{
+    background-color: {Colors.BG_ELEVATED};
+    border-top: 1px solid {Colors.BORDER_SUBTLE};
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+}}
+
+QWidget#dialogSurface {{
+    background-color: {Colors.BG_SURFACE};
+}}
+
+QLabel#dialogTitle {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 16px;
+    font-weight: 700;
+}}
+
+QPushButton#closeBtn {{
+    background: transparent;
+    color: {Colors.TEXT_MUTED};
+    font-size: 20px;
+    border-radius: 8px;
+}}
+
+QPushButton#closeBtn:hover {{
+    background: {Colors.BG_HOVER};
+    color: {Colors.TEXT_PRIMARY};
 }}
 
 /* ── Message Box ── */
@@ -599,6 +1053,33 @@ QCheckBox::indicator:checked {{
 def apply_theme(app) -> None:
     """QApplication'a o an aktif olan temayı uygular."""
     app.setStyleSheet(get_stylesheet())
+
+    # Rich text (<a href>) bağlantıları QSS color'ını almaz; renkleri palette'in
+    # Link rolünden okunur.
+    palette = app.palette()
+    palette.setColor(QPalette.ColorRole.Link, QColor(Colors.ACCENT_LIGHT))
+    palette.setColor(QPalette.ColorRole.LinkVisited, QColor(Colors.ACCENT))
+    app.setPalette(palette)
+
+
+def repolish(widget) -> None:
+    """
+    Widget'ı ve tüm alt widget'larını yeniden boyar.
+
+    Qt, dinamik property'ler ([active="true"] gibi) değiştiğinde ya da global
+    stylesheet yenilendiğinde otomatik yeniden boyamaz; stil nesnesinin
+    yeniden atanması (unpolish/polish) gerekir.
+    """
+    style = widget.style()
+    style.unpolish(widget)
+    style.polish(widget)
+    widget.update()
+
+    for child in widget.findChildren(QWidget):
+        child_style = child.style()
+        child_style.unpolish(child)
+        child_style.polish(child)
+        child.update()
 
 
 def get_status_style(status: str) -> tuple[str, str]:

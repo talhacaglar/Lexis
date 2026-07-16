@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QDate, QLocale, QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -24,17 +24,35 @@ from lexis.domain.models import Word, WordStats
 from lexis.services.word_service import WordService
 from lexis.ui.icons import colored_icon
 from lexis.ui.theme import Colors
+from lexis.ui.widgets.common import SectionLabel
 from lexis.ui.widgets.word_card import WordCard
+
+_TR_LOCALE = QLocale(QLocale.Language.Turkish, QLocale.Country.Turkey)
+
+
+def _format_date_tr(when: datetime) -> str:
+    """
+    Tarihi Türkçe biçimler (ör. "17 Temmuz 2026, Cuma").
+
+    strftime sistem yereline bağlı olduğundan Türkçe arayüzde "July"/"Friday"
+    basabiliyordu; QLocale dilden bağımsız olarak Türkçe verir.
+    """
+    return _TR_LOCALE.toString(QDate(when.year, when.month, when.day), "d MMMM yyyy, dddd")
 
 
 class StatCard(QFrame):
-    """İstatistik kartı."""
+    """
+    İstatistik kartı.
+
+    tone, değerin vurgu rengini seçer; renkler QSS'teki
+    #statValue[tone="..."] kurallarından gelir.
+    """
 
     def __init__(
         self,
         value: str,
         label: str,
-        accent_color: str = Colors.ACCENT,
+        tone: str = "accent",
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -46,19 +64,11 @@ class StatCard(QFrame):
         layout.setSpacing(4)
 
         val_label = QLabel(value)
-        val_label.setStyleSheet(f"""
-            color: {accent_color};
-            font-size: 28px;
-            font-weight: 700;
-        """)
+        val_label.setObjectName("statValue")
+        val_label.setProperty("tone", tone)
 
         lbl = QLabel(label)
-        lbl.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 11px;
-            font-weight: 500;
-            letter-spacing: 0.5px;
-        """)
+        lbl.setObjectName("statLabel")
 
         layout.addWidget(val_label)
         layout.addWidget(lbl)
@@ -110,17 +120,10 @@ class DashboardView(QWidget):
         greeting = self._get_greeting()
 
         self._greeting_label = QLabel(greeting)
-        self._greeting_label.setStyleSheet(f"""
-            color: {Colors.TEXT_PRIMARY};
-            font-size: 26px;
-            font-weight: 700;
-        """)
+        self._greeting_label.setObjectName("greeting")
 
-        self._date_label = QLabel(today.strftime("%d %B %Y, %A"))
-        self._date_label.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 13px;
-        """)
+        self._date_label = QLabel(_format_date_tr(today))
+        self._date_label.setObjectName("dateLabel")
 
         header_col.addWidget(self._greeting_label)
         header_col.addWidget(self._date_label)
@@ -153,14 +156,7 @@ class DashboardView(QWidget):
 
         # ── Recent Words Section ──
         recent_header = QHBoxLayout()
-        recent_label = QLabel("SON EKLENENLER")
-        recent_label.setObjectName("sectionTitle")
-        recent_label.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-        """)
+        recent_label = SectionLabel("SON EKLENENLER")
         recent_header.addWidget(recent_label, 1)
         layout.addLayout(recent_header)
 
@@ -173,12 +169,7 @@ class DashboardView(QWidget):
 
         self._empty_label = QLabel("Henüz kelime eklenmemiş.\nİlk kelimenizi eklemek için yukarıdaki butona tıklayın.")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_label.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 14px;
-            line-height: 1.8;
-            padding: 60px 0;
-        """)
+        self._empty_label.setObjectName("emptyState")
         self._empty_label.setVisible(False)
         layout.addWidget(self._empty_label)
 
@@ -221,15 +212,14 @@ class DashboardView(QWidget):
                 item.widget().deleteLater()
 
         cards = [
-            (str(stats.total), "Toplam Kelime", Colors.ACCENT_LIGHT),
-            (str(stats.practice_queue_size), "Bugün Tekrar", Colors.STATUS_REVIEW),
-            (str(stats.learning), "Öğreniyorum", Colors.WARNING),
-            (str(stats.learned), "Öğrendim", Colors.SUCCESS),
-            (str(stats.favorites), "Favori", Colors.FAVORITE),
+            (str(stats.total), "Toplam Kelime", "accent"),
+            (str(stats.practice_queue_size), "Bugün Tekrar", "review"),
+            (str(stats.learning), "Öğreniyorum", "warning"),
+            (str(stats.learned), "Öğrendim", "success"),
+            (str(stats.favorites), "Favori", "favorite"),
         ]
-        for val, lbl, color in cards:
-            card = StatCard(val, lbl, color)
-            self._stats_layout.addWidget(card)
+        for val, lbl, tone in cards:
+            self._stats_layout.addWidget(StatCard(val, lbl, tone))
 
     def _refresh_words(self, words: list[Word]) -> None:
         # Eski kartları temizle

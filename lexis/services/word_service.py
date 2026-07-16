@@ -216,6 +216,10 @@ class WordService:
         word.ai_generated = True
         return self._repo.update(word)
 
+    def configure_ai(self, api_key: str) -> None:
+        """AI istemcisini yeni API anahtarıyla yeniden yapılandırır."""
+        self._ai.configure(api_key)
+
     @property
     def ai_configured(self) -> bool:
         return self._ai.is_configured

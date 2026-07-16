@@ -20,7 +20,7 @@ from lexis.persistence.word_repository import WordRepository
 from lexis.services.ai_service import AIService
 from lexis.services.export_service import ExportService
 from lexis.services.word_service import WordService
-from lexis.ui.theme import apply_theme
+from lexis.ui.theme import apply_theme, repolish, set_theme
 from lexis.ui.windows.main_window import MainWindow
 
 
@@ -86,39 +86,28 @@ def run() -> int:
 
     # Tema tercihini (DB'den) yükle ve uygula
     theme_name = get_settings().app_theme
-    from lexis.ui.theme import set_theme
     set_theme(theme_name)
     apply_theme(app)
 
-    def build_main_window() -> MainWindow:
-        """Yeni MainWindow oluşturur ve tema değişimi sinyalini bağlar."""
-        window = MainWindow(word_service=word_service, export_service=export_service)
-        window._settings.theme_changed.connect(on_theme_changed)
-        return window
-
     def on_theme_changed(new_theme: str) -> None:
-        # Tema renkleri widget'lara inşa anında gömüldüğü için canlı yeniden
-        # boyama yerine pencere yeniden kurulur. Aktif sayfa ve geometri korunur.
+        """
+        Temayı yerinde değiştirir.
+
+        Renkler global QSS'te tanımlı olduğundan stylesheet'i yenileyip widget
+        ağacını yeniden boyamak yeterli: pencere yeniden kurulmaz, dolayısıyla
+        arama metni, scroll konumu ve açık kelime korunur.
+        """
         logger.info("Tema değiştiriliyor: %s", new_theme)
         set_theme(new_theme)
         apply_theme(app)
+        repolish(app._main_window)
 
-        old_window = app._main_window
-        active_page = old_window.current_page()
-        geometry = old_window.saveGeometry()
-
-        new_window = build_main_window()
-        new_window.restoreGeometry(geometry)
-        new_window.navigate_to(active_page)
-        new_window.show()
-
-        app._main_window = new_window
-        old_window.close()
-        old_window.deleteLater()
+    window = MainWindow(word_service=word_service, export_service=export_service)
+    window._settings.theme_changed.connect(on_theme_changed)
 
     # Python GC'nin temizlememesi için window referansını app'e takıyoruz
-    app._main_window = build_main_window()
-    app._main_window.show()
+    app._main_window = window
+    window.show()
 
     logger.info("Lexis hazır.")
     return app.exec()

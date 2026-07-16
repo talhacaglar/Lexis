@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 
 from lexis.domain.models import ReviewGrade, Word
 from lexis.services.word_service import WordService
-from lexis.ui.theme import Colors
+from lexis.ui.widgets.common import Divider
 
 
 class PracticeView(QWidget):
@@ -49,8 +49,8 @@ class PracticeView(QWidget):
 
         # Üst bar: geri + ilerleme
         topbar = QWidget()
+        topbar.setObjectName("topbar")
         topbar.setFixedHeight(72)
-        topbar.setStyleSheet(f"background: {Colors.BG_BASE};")
         tb = QHBoxLayout(topbar)
         tb.setContentsMargins(36, 0, 36, 0)
 
@@ -62,9 +62,7 @@ class PracticeView(QWidget):
         tb.addStretch()
 
         self._progress_label = QLabel("")
-        self._progress_label.setStyleSheet(
-            f"color: {Colors.TEXT_SECONDARY}; font-size: 13px; font-weight: 600;"
-        )
+        self._progress_label.setObjectName("practiceProgress")
         tb.addWidget(self._progress_label)
         root.addWidget(topbar)
 
@@ -92,16 +90,12 @@ class PracticeView(QWidget):
         self._term_label = QLabel("")
         self._term_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._term_label.setWordWrap(True)
-        self._term_label.setStyleSheet(
-            f"color: {Colors.TEXT_PRIMARY}; font-size: 34px; font-weight: 800;"
-        )
+        self._term_label.setObjectName("practiceTerm")
         card_layout.addWidget(self._term_label)
 
         self._meta_label = QLabel("")
         self._meta_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._meta_label.setStyleSheet(
-            f"color: {Colors.TEXT_MUTED}; font-size: 13px; font-weight: 500;"
-        )
+        self._meta_label.setObjectName("practiceMeta")
         card_layout.addWidget(self._meta_label)
 
         # Cevap bölümü (açılınca görünür)
@@ -110,25 +104,18 @@ class PracticeView(QWidget):
         ans.setContentsMargins(0, 8, 0, 0)
         ans.setSpacing(12)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height: 1px;")
-        ans.addWidget(sep)
+        ans.addWidget(Divider())
 
         self._definition_label = QLabel("")
         self._definition_label.setWordWrap(True)
         self._definition_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._definition_label.setStyleSheet(
-            f"color: {Colors.TEXT_PRIMARY}; font-size: 16px; line-height: 1.6;"
-        )
+        self._definition_label.setObjectName("practiceDefinition")
         ans.addWidget(self._definition_label)
 
         self._examples_label = QLabel("")
         self._examples_label.setWordWrap(True)
         self._examples_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._examples_label.setStyleSheet(
-            f"color: {Colors.TEXT_SECONDARY}; font-size: 13px; line-height: 1.7;"
-        )
+        self._examples_label.setObjectName("practiceExamples")
         ans.addWidget(self._examples_label)
 
         card_layout.addWidget(self._answer_widget)
@@ -158,6 +145,7 @@ class PracticeView(QWidget):
         self._reveal_btn = QPushButton("Cevabı Göster  (Boşluk)")
         self._reveal_btn.setObjectName("primaryBtn")
         self._reveal_btn.setMinimumHeight(48)
+        self._reveal_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._reveal_btn.clicked.connect(self._reveal)
 
         # Derecelendirme butonları
@@ -167,11 +155,12 @@ class PracticeView(QWidget):
             start=1,
         ):
             btn = QPushButton(f"{grade.display_name}  ({i})")
+            btn.setObjectName("gradeBtn")
+            btn.setProperty("grade", grade.name.lower())
             btn.setMinimumHeight(48)
-            btn.setStyleSheet(
-                f"background-color: {grade.color}; color: white; border: none;"
-                "border-radius: 10px; font-weight: 700; font-size: 14px;"
-            )
+            # Odak view'da kalsın: aksi hâlde değerlendirmeden sonra Boşluk tuşu
+            # keyPressEvent yerine odaklanmış butonu tetikler.
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             btn.clicked.connect(lambda _=False, g=grade: self._grade(g))
             self._grade_buttons.append(btn)
 
@@ -179,9 +168,7 @@ class PracticeView(QWidget):
         self._done_label = QLabel("")
         self._done_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._done_label.setWordWrap(True)
-        self._done_label.setStyleSheet(
-            f"color: {Colors.TEXT_PRIMARY}; font-size: 18px; line-height: 1.8;"
-        )
+        self._done_label.setObjectName("practiceDone")
         self._done_label.setVisible(False)
         outer.addWidget(self._done_label)
 

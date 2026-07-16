@@ -6,6 +6,8 @@ Yeni kelime ekleme ve AI içerik üretimi diyalogu.
 
 from __future__ import annotations
 
+import logging
+
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -23,20 +25,14 @@ from PyQt6.QtWidgets import (
 
 from lexis.domain.models import SUPPORTED_LANGUAGES
 from lexis.services.word_service import WordService
-from lexis.ui.theme import Colors
+from lexis.ui.theme import repolish
+from lexis.ui.widgets.common import Divider, SectionLabel
 from lexis.ui.widgets.loading_overlay import LoadingOverlay
 from lexis.workers.ai_worker import AIGenerationWorker
 
+logger = logging.getLogger(__name__)
 
-class SectionLabel(QLabel):
-    def __init__(self, text: str, parent=None):
-        super().__init__(text, parent)
-        self.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1px;
-        """)
+
 
 
 class AddWordDialog(QDialog):
@@ -59,39 +55,11 @@ class AddWordDialog(QDialog):
 
     def _setup_ui(self) -> None:
         self.setWindowTitle("Yeni Kelime Ekle")
-        self.setFixedSize(560, 680)
         self.setModal(True)
-        self.setStyleSheet(f"""
-            QDialog {{
-                background-color: {Colors.BG_SURFACE};
-                border-radius: 16px;
-            }}
-            QPushButton#secondaryBtn {{
-                background: transparent;
-                color: {Colors.TEXT_SECONDARY};
-                border: 1px solid {Colors.BORDER};
-                border-radius: 10px;
-                font-size: 13px;
-            }}
-            QPushButton#secondaryBtn:hover {{
-                background: {Colors.BG_HOVER};
-                color: {Colors.TEXT_PRIMARY};
-                border: 1px solid {Colors.BORDER_FOCUS};
-            }}
-            QPushButton#primaryBtn {{
-                background: {Colors.ACCENT};
-                color: {Colors.TEXT_PRIMARY};
-                border: none;
-                border-radius: 10px;
-                font-weight: 600;
-                font-size: 13px;
-            }}
-            QPushButton#primaryBtn:disabled {{
-                background: {Colors.BG_ELEVATED};
-                color: {Colors.TEXT_MUTED};
-                border: none;
-            }}
-        """)
+        # Buton ve yüzey stilleri global QSS'ten gelir; buradaki yerel kopyalar
+        # uygulamanın geri kalanından farklı renkler üretiyordu.
+        self.setMinimumSize(560, 620)
+        self.resize(560, 680)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -99,37 +67,19 @@ class AddWordDialog(QDialog):
 
         # ── Header ──
         header = QWidget()
+        header.setObjectName("dialogHeader")
         header.setFixedHeight(70)
-        header.setStyleSheet(f"""
-            background-color: {Colors.BG_ELEVATED};
-            border-bottom: 1px solid {Colors.BORDER_SUBTLE};
-            border-top-left-radius: 16px;
-            border-top-right-radius: 16px;
-        """)
         h_layout = QHBoxLayout(header)
         h_layout.setContentsMargins(24, 0, 24, 0)
 
         title = QLabel("Yeni Kelime Ekle")
-        title.setStyleSheet(f"""
-            color: {Colors.TEXT_PRIMARY};
-            font-size: 16px;
-            font-weight: 700;
-        """)
+        title.setObjectName("dialogTitle")
 
         close_btn = QPushButton("×")
+        close_btn.setObjectName("closeBtn")
         close_btn.setFixedSize(32, 32)
-        close_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                color: {Colors.TEXT_MUTED};
-                font-size: 20px;
-                border-radius: 8px;
-            }}
-            QPushButton:hover {{
-                background: {Colors.BG_HOVER};
-                color: {Colors.TEXT_PRIMARY};
-            }}
-        """)
+        close_btn.setToolTip("Kapat")
+        close_btn.setAccessibleName("Kapat")
         close_btn.clicked.connect(self.reject)
 
         h_layout.addWidget(title, 1)
@@ -143,7 +93,7 @@ class AddWordDialog(QDialog):
         scroll.setStyleSheet("background: transparent;")
 
         content = QWidget()
-        content.setStyleSheet(f"background: {Colors.BG_SURFACE};")
+        content.setObjectName("dialogSurface")
         form = QVBoxLayout(content)
         form.setContentsMargins(24, 24, 24, 24)
         form.setSpacing(20)
@@ -188,10 +138,7 @@ class AddWordDialog(QDialog):
         result_layout.setSpacing(16)
 
         # Separator
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height: 1px;")
-        result_layout.addWidget(sep)
+        result_layout.addWidget(Divider())
 
         # Short definition
         result_layout.addWidget(SectionLabel("KISA TANIM"))
@@ -248,19 +195,14 @@ class AddWordDialog(QDialog):
 
         # ── Footer ──
         footer = QWidget()
+        footer.setObjectName("dialogFooter")
         footer.setFixedHeight(70)
-        footer.setStyleSheet(f"""
-            background-color: {Colors.BG_ELEVATED};
-            border-top: 1px solid {Colors.BORDER_SUBTLE};
-            border-bottom-left-radius: 16px;
-            border-bottom-right-radius: 16px;
-        """)
         f_layout = QHBoxLayout(footer)
         f_layout.setContentsMargins(24, 0, 24, 0)
         f_layout.setSpacing(12)
 
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 12px;")
+        self._status_label.setObjectName("statusText")
         f_layout.addWidget(self._status_label, 1)
 
         cancel_btn = QPushButton("İptal")
@@ -314,14 +256,21 @@ class AddWordDialog(QDialog):
         self._result_widget.setVisible(True)
         self._save_btn.setEnabled(True)
         self._generate_btn.setEnabled(True)
-        self._status_label.setText("✓ İçerik üretildi")
-        self._status_label.setStyleSheet(f"color: {Colors.STATUS_LEARNED}; font-size: 12px; font-weight: 600;")
+        self._set_status("✓ İçerik üretildi", "success")
+
+    def _set_status(self, message: str, level: str = "info") -> None:
+        """
+        Durum metnini günceller. Renk QSS'teki #statusText[level="..."]
+        kuralından gelir, böylece tema değişiminde yeniden boyanır.
+        """
+        self._status_label.setText(message)
+        self._status_label.setProperty("level", level)
+        repolish(self._status_label)
 
     def _on_ai_error(self, message: str) -> None:
         self._loading.hide_loading()
         self._generate_btn.setEnabled(True)
-        self._status_label.setText(f"Hata: {message}")
-        self._status_label.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
+        self._set_status(f"Hata: {message}", "error")
         # Hata olsa bile kaydetmeye izin ver (boş veriyle)
         self._result_widget.setVisible(True)
         self._save_btn.setEnabled(True)
@@ -363,8 +312,8 @@ class AddWordDialog(QDialog):
             self.word_added.emit(word.id)
             self.accept()
         except Exception as e:
-            self._status_label.setText(str(e))
-            self._status_label.setStyleSheet(f"color: {Colors.ERROR}; font-size: 12px;")
+            logger.exception("Kelime kaydedilemedi")
+            self._set_status(str(e), "error")
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

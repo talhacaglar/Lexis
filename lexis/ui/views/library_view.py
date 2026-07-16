@@ -22,7 +22,6 @@ from PyQt6.QtWidgets import (
 
 from lexis.domain.models import SUPPORTED_LANGUAGES, Word, WordStatus
 from lexis.services.word_service import WordService
-from lexis.ui.theme import Colors
 from lexis.ui.widgets.word_card import WordCard
 
 
@@ -56,19 +55,15 @@ class LibraryView(QWidget):
 
         # ── Top Bar ──
         topbar = QWidget()
+        topbar.setObjectName("topbar")
         topbar.setFixedHeight(72)
-        topbar.setStyleSheet(f"background: {Colors.BG_BASE};")
         topbar_layout = QHBoxLayout(topbar)
         topbar_layout.setContentsMargins(36, 0, 36, 0)
         topbar_layout.setSpacing(12)
 
         # Page title
         title = QLabel("Kütüphane")
-        title.setStyleSheet(f"""
-            color: {Colors.TEXT_PRIMARY};
-            font-size: 22px;
-            font-weight: 700;
-        """)
+        title.setObjectName("pageTitle")
         topbar_layout.addWidget(title)
         topbar_layout.addStretch()
 
@@ -82,10 +77,7 @@ class LibraryView(QWidget):
 
         # ── Search + Filter Bar ──
         filter_bar = QWidget()
-        filter_bar.setStyleSheet(f"""
-            background: {Colors.BG_SURFACE};
-            border-bottom: 1px solid {Colors.BORDER_SUBTLE};
-        """)
+        filter_bar.setObjectName("filterBar")
         filter_layout = QVBoxLayout(filter_bar)
         filter_layout.setContentsMargins(36, 14, 36, 14)
         filter_layout.setSpacing(12)
@@ -95,28 +87,19 @@ class LibraryView(QWidget):
         search_row.setSpacing(10)
 
         search_container = QWidget()
-        search_container.setStyleSheet(f"""
-            background: {Colors.BG_ELEVATED};
-            border: none;
-            border-radius: 10px;
-        """)
+        search_container.setObjectName("searchContainer")
         search_inner = QHBoxLayout(search_container)
         search_inner.setContentsMargins(14, 0, 14, 0)
         search_inner.setSpacing(8)
 
         search_icon = QLabel("⌕")
-        search_icon.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 16px; background: transparent;")
+        search_icon.setObjectName("searchIcon")
         search_inner.addWidget(search_icon)
 
         self._search_input = QLineEdit()
         self._search_input.setPlaceholderText("Kelime veya tanım ara...")
-        self._search_input.setStyleSheet(f"""
-            background: transparent;
-            border: none;
-            color: {Colors.TEXT_PRIMARY};
-            font-size: 14px;
-            padding: 9px 0;
-        """)
+        self._search_input.setObjectName("searchField")
+        self._search_input.setAccessibleName("Kelime ara")
         self._search_input.textChanged.connect(self._on_search_changed)
         search_inner.addWidget(self._search_input, 1)
 
@@ -167,7 +150,7 @@ class LibraryView(QWidget):
         chips_row.addStretch()
 
         self._count_label = QLabel("")
-        self._count_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: 12px;")
+        self._count_label.setObjectName("countLabel")
         chips_row.addWidget(self._count_label)
 
         filter_layout.addLayout(chips_row)
@@ -188,11 +171,7 @@ class LibraryView(QWidget):
 
         self._empty_label = QLabel("Arama sonucu bulunamadı.")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_label.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 14px;
-            padding: 60px 0;
-        """)
+        self._empty_label.setObjectName("emptyState")
         self._empty_label.setVisible(False)
 
         scroll_content = QWidget()

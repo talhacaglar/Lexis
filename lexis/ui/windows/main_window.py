@@ -9,7 +9,6 @@ from __future__ import annotations
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QCursor, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -28,6 +27,7 @@ from lexis.ui.views.practice_view import PracticeView
 from lexis.ui.views.settings_view import SettingsView
 from lexis.ui.views.word_detail_view import WordDetailView
 from lexis.ui.widgets.add_word_dialog import AddWordDialog
+from lexis.ui.widgets.common import Divider
 
 # Page indices
 PAGE_DASHBOARD = 0
@@ -88,40 +88,20 @@ class Sidebar(QWidget):
 
         logo_label = QLabel("Lexis")
         logo_label.setObjectName("appTitle")
-        logo_label.setStyleSheet(f"""
-            color: {Colors.ACCENT_LIGHT};
-            font-size: 22px;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-        """)
 
         sub_label = QLabel("kişisel sözlüğün")
-        sub_label.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 10px;
-            font-weight: 500;
-            letter-spacing: 0.5px;
-        """)
+        sub_label.setObjectName("appTagline")
 
         logo_layout.addWidget(logo_label)
         logo_layout.addWidget(sub_label)
         layout.addWidget(logo_container)
 
         # ── Separator ──
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height: 1px; margin-bottom: 8px;")
-        layout.addWidget(sep)
+        layout.addWidget(Divider(spaced=True))
 
         # ── Section label ──
         nav_lbl = QLabel("MENÜ")
-        nav_lbl.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            padding: 8px 8px 4px 8px;
-        """)
+        nav_lbl.setObjectName("navSectionLabel")
         layout.addWidget(nav_lbl)
 
         # ── Nav items ──
@@ -138,10 +118,7 @@ class Sidebar(QWidget):
         layout.addStretch()
 
         # ── Bottom section ──
-        settings_sep = QFrame()
-        settings_sep.setFrameShape(QFrame.Shape.HLine)
-        settings_sep.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height: 1px; margin-bottom: 8px;")
-        layout.addWidget(settings_sep)
+        layout.addWidget(Divider(spaced=True))
 
         settings_btn = NavButton("settings", "Ayarlar")
         settings_btn.clicked.connect(lambda: self.navigate.emit(PAGE_SETTINGS))
@@ -257,11 +234,13 @@ class MainWindow(QWidget):
         self._stack.setCurrentIndex(page)
         self._sidebar.set_active_page(page)
 
-        # Refresh on navigate
+        # Ekrana her dönüşte güncel veriyi göster.
         if page == PAGE_DASHBOARD:
             self._dashboard.refresh()
         elif page == PAGE_LIBRARY:
             self._library.refresh()
+        elif page == PAGE_SETTINGS:
+            self._settings.refresh()
 
     def _open_add_dialog(self) -> None:
         dialog = AddWordDialog(self._service, parent=self)

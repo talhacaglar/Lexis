@@ -72,12 +72,7 @@ class LoadingOverlay(QWidget):
 
         self._msg_label = QLabel(message)
         self._msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._msg_label.setStyleSheet(f"""
-            color: {Colors.TEXT_SECONDARY};
-            font-size: 13px;
-            font-weight: 500;
-            background: transparent;
-        """)
+        self._msg_label.setObjectName("overlayMessage")
         layout.addWidget(self._msg_label)
 
         self.hide()

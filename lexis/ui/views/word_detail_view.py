@@ -20,18 +20,11 @@ from PyQt6.QtWidgets import (
 
 from lexis.domain.models import Word, WordStatus
 from lexis.services.word_service import WordService
-from lexis.ui.theme import Colors, get_status_badge_style
+from lexis.ui.theme import repolish
+from lexis.ui.widgets.common import Chip, Divider, SectionLabel, StatusBadge
 from lexis.ui.widgets.loading_overlay import LoadingOverlay
 from lexis.ui.widgets.tag_badge import TagBadge
 from lexis.workers.ai_worker import AIGenerationWorker
-
-
-class Divider(QFrame):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFrameShape(QFrame.Shape.HLine)
-        self.setFixedHeight(1)
-        self.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; border: none;")
 
 
 class WordDetailView(QWidget):
@@ -58,11 +51,8 @@ class WordDetailView(QWidget):
 
         # ── Top Navigation Bar ──
         navbar = QWidget()
+        navbar.setObjectName("detailNavbar")
         navbar.setFixedHeight(60)
-        navbar.setStyleSheet(f"""
-            background: {Colors.BG_SURFACE};
-            border-bottom: 1px solid {Colors.BORDER_SUBTLE};
-        """)
         nav_layout = QHBoxLayout(navbar)
         nav_layout.setContentsMargins(24, 0, 24, 0)
         nav_layout.setSpacing(12)
@@ -95,7 +85,7 @@ class WordDetailView(QWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self._content = QWidget()
-        self._content.setStyleSheet(f"background: {Colors.BG_BASE};")
+        self._content.setObjectName("contentSurface")
         content_layout = QVBoxLayout(self._content)
         content_layout.setContentsMargins(60, 40, 60, 60)
         content_layout.setSpacing(0)
@@ -110,31 +100,15 @@ class WordDetailView(QWidget):
         term_row = QHBoxLayout()
 
         self._term_label = QLabel()
-        self._term_label.setStyleSheet(f"""
-            color: {Colors.TEXT_PRIMARY};
-            font-size: 42px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-        """)
+        self._term_label.setObjectName("detailTerm")
         term_row.addWidget(self._term_label, 1)
 
         self._fav_btn = QPushButton("♥")
         self._fav_btn.setObjectName("favoriteBtn")
+        self._fav_btn.setProperty("size", "large")
         self._fav_btn.setFixedSize(44, 44)
-        self._fav_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                color: {Colors.TEXT_MUTED};
-                border-radius: 10px;
-                font-size: 22px;
-            }}
-            QPushButton:hover {{
-                background: {Colors.BG_ELEVATED};
-            }}
-            QPushButton[active="true"] {{
-                color: {Colors.FAVORITE};
-            }}
-        """)
+        self._fav_btn.setToolTip("Favorilere ekle/çıkar")
+        self._fav_btn.setAccessibleName("Favorilere ekle/çıkar")
         self._fav_btn.clicked.connect(self._toggle_favorite)
         term_row.addWidget(self._fav_btn)
 
@@ -144,8 +118,10 @@ class WordDetailView(QWidget):
         self._badges_row = QHBoxLayout()
         self._badges_row.setSpacing(8)
         self._lang_badge = QLabel()
+        self._lang_badge.setObjectName("detailLangBadge")
         self._pos_badge = QLabel()
-        self._status_badge = QLabel()
+        self._pos_badge.setObjectName("detailPosBadge")
+        self._status_badge = StatusBadge("new", "")
         self._badges_row.addWidget(self._lang_badge)
         self._badges_row.addWidget(self._pos_badge)
         self._badges_row.addWidget(self._status_badge)
@@ -162,20 +138,11 @@ class WordDetailView(QWidget):
         def_layout.setSpacing(12)
 
         self._short_def_label = QLabel()
-        self._short_def_label.setStyleSheet(f"""
-            color: {Colors.TEXT_SECONDARY};
-            font-size: 15px;
-            font-style: italic;
-            line-height: 1.6;
-        """)
+        self._short_def_label.setObjectName("detailShortDef")
         self._short_def_label.setWordWrap(True)
 
         self._definition_label = QLabel()
-        self._definition_label.setStyleSheet(f"""
-            color: {Colors.TEXT_PRIMARY};
-            font-size: 15px;
-            line-height: 1.8;
-        """)
+        self._definition_label.setObjectName("detailDefinition")
         self._definition_label.setWordWrap(True)
 
         def_layout.addWidget(self._short_def_label)
@@ -190,13 +157,7 @@ class WordDetailView(QWidget):
         status_layout.setContentsMargins(0, 24, 0, 24)
         status_layout.setSpacing(12)
 
-        status_title = QLabel("ÖĞRENME DURUMU")
-        status_title.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-        """)
+        status_title = SectionLabel("ÖĞRENME DURUMU")
         status_layout.addWidget(status_title)
 
         status_btns_row = QHBoxLayout()
@@ -222,13 +183,7 @@ class WordDetailView(QWidget):
 
         # Synonyms
         syn_col = QVBoxLayout()
-        syn_title = QLabel("EŞ ANLAMLILAR")
-        syn_title.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-        """)
+        syn_title = SectionLabel("EŞ ANLAMLILAR")
         syn_col.addWidget(syn_title)
         self._synonyms_row = QHBoxLayout()
         self._synonyms_row.setSpacing(6)
@@ -238,13 +193,7 @@ class WordDetailView(QWidget):
 
         # Antonyms
         ant_col = QVBoxLayout()
-        ant_title = QLabel("ZIT ANLAMLILAR")
-        ant_title.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-        """)
+        ant_title = SectionLabel("ZIT ANLAMLILAR")
         ant_col.addWidget(ant_title)
         self._antonyms_row = QHBoxLayout()
         self._antonyms_row.setSpacing(6)
@@ -261,13 +210,7 @@ class WordDetailView(QWidget):
         examples_layout.setContentsMargins(0, 24, 0, 24)
         examples_layout.setSpacing(12)
 
-        ex_title = QLabel("ÖRNEK CÜMLELER")
-        ex_title.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-        """)
+        ex_title = SectionLabel("ÖRNEK CÜMLELER")
         examples_layout.addWidget(ex_title)
 
         self._examples_container = QVBoxLayout()
@@ -283,19 +226,9 @@ class WordDetailView(QWidget):
         usage_layout.setContentsMargins(0, 24, 0, 24)
         usage_layout.setSpacing(12)
 
-        usage_title = QLabel("KULLANIM NOTU")
-        usage_title.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-        """)
+        usage_title = SectionLabel("KULLANIM NOTU")
         self._usage_label = QLabel()
-        self._usage_label.setStyleSheet(f"""
-            color: {Colors.TEXT_SECONDARY};
-            font-size: 14px;
-            line-height: 1.7;
-        """)
+        self._usage_label.setObjectName("detailUsage")
         self._usage_label.setWordWrap(True)
         usage_layout.addWidget(usage_title)
         usage_layout.addWidget(self._usage_label)
@@ -311,13 +244,7 @@ class WordDetailView(QWidget):
         tags_layout.setSpacing(12)
 
         tags_title_row = QHBoxLayout()
-        tags_title = QLabel("ETİKETLER")
-        tags_title.setStyleSheet(f"""
-            color: {Colors.TEXT_MUTED};
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-        """)
+        tags_title = SectionLabel("ETİKETLER")
         tags_title_row.addWidget(tags_title)
         tags_title_row.addStretch()
 
@@ -374,31 +301,12 @@ class WordDetailView(QWidget):
 
         # Favorite
         self._fav_btn.setProperty("active", "true" if w.is_favorite else "false")
-        self._fav_btn.setStyle(self._fav_btn.style())
+        repolish(self._fav_btn)
 
         # Badges
         self._lang_badge.setText(w.language_display)
-        self._lang_badge.setStyleSheet(f"""
-            background: {Colors.BG_ELEVATED};
-            color: {Colors.TEXT_SECONDARY};
-            border-radius: 5px;
-            padding: 3px 10px;
-            font-size: 11px;
-            font-weight: 600;
-        """)
-
-        if w.part_of_speech:
-            self._pos_badge.setText(w.part_of_speech)
-            self._pos_badge.setStyleSheet(f"""
-                color: {Colors.TEXT_MUTED};
-                font-size: 12px;
-                font-style: italic;
-                padding: 3px 6px;
-            """)
-        else:
-            self._pos_badge.setText("")
-
-        self._status_badge.setStyleSheet(get_status_badge_style(w.status.value))
+        self._pos_badge.setText(w.part_of_speech or "")
+        self._status_badge.set_status(w.status.value, w.status.display_name)
         self._status_badge.setText(f"{w.status.icon}  {w.status.display_name}")
 
         # Status buttons
@@ -415,24 +323,16 @@ class WordDetailView(QWidget):
         # Synonyms
         self._clear_layout(self._synonyms_row)
         for syn in w.synonyms[:8]:
-            chip = self._make_chip(syn, Colors.ACCENT_MUTED, Colors.ACCENT)
-            self._synonyms_row.addWidget(chip)
+            self._synonyms_row.addWidget(Chip(syn, variant="accent"))
         if not w.synonyms:
-            lbl = QLabel("—")
-            lbl.setStyleSheet(f"color: {Colors.TEXT_MUTED};")
-            self._synonyms_row.addWidget(lbl)
+            self._synonyms_row.addWidget(self._empty_placeholder())
 
         # Antonyms
         self._clear_layout(self._antonyms_row)
-        from lexis.ui.theme import get_status_style
         for ant in w.antonyms[:6]:
-            bg, fg = get_status_style("needs_review")
-            chip = self._make_chip(ant, bg, fg)
-            self._antonyms_row.addWidget(chip)
+            self._antonyms_row.addWidget(Chip(ant, variant="danger"))
         if not w.antonyms:
-            lbl = QLabel("—")
-            lbl.setStyleSheet(f"color: {Colors.TEXT_MUTED};")
-            self._antonyms_row.addWidget(lbl)
+            self._antonyms_row.addWidget(self._empty_placeholder())
 
         # Examples
         self._clear_layout(self._examples_container)
@@ -450,14 +350,7 @@ class WordDetailView(QWidget):
             ex_layout.setSpacing(12)
 
             num = QLabel(str(i))
-            num.setStyleSheet(f"""
-                color: {Colors.ACCENT};
-                font-weight: 700;
-                font-size: 14px;
-                min-width: 20px;
-                background: transparent;
-                border: none;
-            """)
+            num.setObjectName("exampleNumber")
 
             text_layout = QVBoxLayout()
             text_layout.setSpacing(10)
@@ -467,23 +360,13 @@ class WordDetailView(QWidget):
 
             foreign_lbl = QLabel(parts[0].strip())
             foreign_lbl.setWordWrap(True)
-            foreign_lbl.setStyleSheet(f"""
-                color: {Colors.TEXT_PRIMARY};
-                font-size: 14px;
-                font-weight: 500;
-                line-height: 1.5;
-            """)
+            foreign_lbl.setObjectName("exampleForeign")
             text_layout.addWidget(foreign_lbl)
 
             if len(parts) > 1 and parts[1].strip():
                 tr_lbl = QLabel(parts[1].strip())
                 tr_lbl.setWordWrap(True)
-                tr_lbl.setStyleSheet(f"""
-                    color: {Colors.TEXT_MUTED};
-                    font-size: 13px;
-                    font-style: italic;
-                    line-height: 1.4;
-                """)
+                tr_lbl.setObjectName("exampleTranslation")
                 text_layout.addWidget(tr_lbl)
 
             ex_layout.addWidget(num, 0, Qt.AlignmentFlag.AlignTop)
@@ -512,16 +395,11 @@ class WordDetailView(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-    def _make_chip(self, text: str, bg: str, fg: str) -> QLabel:
-        lbl = QLabel(text)
-        lbl.setStyleSheet(f"""
-            background: {bg};
-            color: {fg};
-            border-radius: 8px;
-            padding: 4px 12px;
-            font-size: 12px;
-            font-weight: 500;
-        """)
+    @staticmethod
+    def _empty_placeholder() -> QLabel:
+        """Boş liste yerine gösterilen tire."""
+        lbl = QLabel("—")
+        lbl.setObjectName("mutedText")
         return lbl
 
     def _toggle_favorite(self) -> None:
