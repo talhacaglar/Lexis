@@ -153,11 +153,21 @@ class WordService:
     def review_word(self, word_id: str, grade: ReviewGrade) -> Word:
         """
         Bir tekrar oturumunda kullanıcının değerlendirmesini uygular.
-        SM-2 ile sonraki tekrar tarihini hesaplar ve kaydeder.
+        SM-2 ile sonraki tekrar tarihini hesaplar, kaydeder ve geçmişe yazar.
         """
         word = self._repo.get_by_id(word_id)
         word.apply_review(grade)
-        return self._repo.update(word)
+        updated = self._repo.update(word)
+        self._repo.log_review(word.id, int(grade), word.interval_days)
+        return updated
+
+    def get_streak(self) -> int:
+        """Kesintisiz çalışılan gün sayısı."""
+        return self._repo.get_streak()
+
+    def get_review_counts(self, days: int = 7) -> dict:
+        """Son `days` gün için gün başına tekrar sayısı."""
+        return self._repo.get_review_counts(days=days)
 
     def add_tag(self, word_id: str, tag: str) -> Word:
         """Kelimeye etiket ekler."""

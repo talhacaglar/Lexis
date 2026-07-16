@@ -9,8 +9,10 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import uuid
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from datetime import time as dtime
 from typing import TypeVar
 
 from lexis.domain.exceptions import DatabaseError, LexisError, WordNotFoundError
@@ -402,6 +404,85 @@ class WordRepository:
             due_today=due_today,
             unreviewed=unreviewed,
         )
+
+    # ── Tekrar geçmişi ────────────────────────────────────────────────────
+
+    @_wrap_db_errors("Tekrar kaydı yazılamadı")
+    def log_review(self, word_id: str, grade: int, interval_days: int) -> None:
+        """Bir tekrarı geçmişe yazar (streak ve aktivite grafiği için)."""
+        with self._db.connection() as conn:
+            conn.execute(
+                "INSERT INTO review_log (id, word_id, grade, reviewed_at, interval_days) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (str(uuid.uuid4()), word_id, int(grade), utcnow().isoformat(), interval_days),
+            )
+            conn.commit()
+
+    @_wrap_db_errors("Tekrar geçmişi okunamadı")
+    def get_review_counts(self, days: int = 7) -> dict[date, int]:
+        """
+        Son `days` gün için gün başına tekrar sayısı (yerel güne göre).
+
+        Hiç tekrar yapılmayan günler 0 ile doldurulur; grafik boşluksuz çizilsin.
+        """
+        today = datetime.now().astimezone().date()
+        counts: dict[date, int] = {
+            today - timedelta(days=offset): 0 for offset in range(days - 1, -1, -1)
+        }
+
+        oldest = today - timedelta(days=days - 1)
+        start_utc = (
+            datetime.combine(oldest, dtime.min)
+            .astimezone()
+            .astimezone(timezone.utc)
+            .isoformat()
+        )
+
+        with self._db.connection() as conn:
+            rows = conn.execute(
+                "SELECT reviewed_at FROM review_log WHERE reviewed_at >= ?",
+                (start_utc,),
+            ).fetchall()
+
+        for row in rows:
+            # UTC saklanır, kullanıcının yerel gününe düşürülür.
+            local_day = datetime.fromisoformat(row["reviewed_at"]).astimezone().date()
+            if local_day in counts:
+                counts[local_day] += 1
+
+        return counts
+
+    @_wrap_db_errors("Seri (streak) hesaplanamadı")
+    def get_streak(self) -> int:
+        """
+        Kesintisiz çalışılan gün sayısı (yerel güne göre).
+
+        Bugün henüz çalışılmadıysa seri bozulmuş sayılmaz: dün çalışıldıysa seri
+        dünden geriye doğru sayılır.
+        """
+        with self._db.connection() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT reviewed_at FROM review_log ORDER BY reviewed_at DESC"
+            ).fetchall()
+
+        if not rows:
+            return 0
+
+        days = {datetime.fromisoformat(r["reviewed_at"]).astimezone().date() for r in rows}
+        today = datetime.now().astimezone().date()
+
+        if today in days:
+            cursor = today
+        elif (today - timedelta(days=1)) in days:
+            cursor = today - timedelta(days=1)
+        else:
+            return 0
+
+        streak = 0
+        while cursor in days:
+            streak += 1
+            cursor -= timedelta(days=1)
+        return streak
 
     # ── Update ────────────────────────────────────────────────────────────
 

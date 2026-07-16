@@ -37,35 +37,56 @@ class ReviewGrade(int, Enum):
         return {1: "#EF4444", 3: "#F59E0B", 4: "#4ADE80", 5: "#60A5FA"}[self.value]
 
 
+# Hatırlanamayan kart, gün sonrasına atılmak yerine bu kadar dakika sonra
+# aynı oturum içinde yeniden sorulur.
+RELEARN_DELAY_MINUTES = 10
+
+# "Zor" değerlendirmesinde aralık, tam ease çarpanı yerine bu katsayıyla büyür.
+HARD_INTERVAL_FACTOR = 1.2
+
+# Bir kelimenin "öğrenildi" sayılması için gereken aralık eşiği (gün).
+LEARNED_INTERVAL_DAYS = 21
+
+
 def compute_sm2(
     ease_factor: float,
     interval_days: int,
     repetitions: int,
     quality: int,
-) -> tuple[float, int, int]:
+) -> tuple[float, int, int, int]:
     """
     SM-2 aralıklı tekrar algoritması (saf fonksiyon).
 
     Returns:
-        (yeni ease_factor, yeni interval_days, yeni repetitions)
+        (yeni ease_factor, yeni interval_days, yeni repetitions, delay_minutes)
+
+        delay_minutes > 0 ise kart gün yerine dakika sonrasına planlanmalıdır
+        (oturum içi yeniden gösterim); 0 ise interval_days geçerlidir.
     """
+    previous_interval = interval_days
+    delay_minutes = 0
+
     if quality < 3:
-        # Başarısız tekrar: baştan başla, yarın tekrar göster.
+        # Hatırlanamadı: ilerleme sıfırlanır ve kart aynı oturumda geri gelir.
         repetitions = 0
-        interval_days = 1
+        interval_days = 0
+        delay_minutes = RELEARN_DELAY_MINUTES
     else:
         if repetitions == 0:
             interval_days = 1
         elif repetitions == 1:
             interval_days = 6
+        elif quality == ReviewGrade.HARD:
+            # Zorlanarak hatırlandı: aralık büyür ama tam ease kadar değil.
+            interval_days = max(1, round(previous_interval * HARD_INTERVAL_FACTOR))
         else:
-            interval_days = round(interval_days * ease_factor)
+            interval_days = max(1, round(previous_interval * ease_factor))
         repetitions += 1
 
     ease_factor += 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)
     ease_factor = max(1.3, ease_factor)
 
-    return ease_factor, interval_days, repetitions
+    return ease_factor, interval_days, repetitions, delay_minutes
 
 
 class WordStatus(str, Enum):
@@ -185,15 +206,20 @@ class Word:
         Bir tekrar değerlendirmesini uygular: SM-2 ile yeni aralığı hesaplar,
         sonraki tekrar tarihini (due_at) belirler ve öğrenme durumunu günceller.
         """
-        self.ease_factor, self.interval_days, self.repetitions = compute_sm2(
+        self.ease_factor, self.interval_days, self.repetitions, delay_minutes = compute_sm2(
             self.ease_factor, self.interval_days, self.repetitions, int(grade)
         )
         now = utcnow()
-        self.due_at = now + timedelta(days=self.interval_days)
+        if delay_minutes:
+            self.due_at = now + timedelta(minutes=delay_minutes)
+        else:
+            self.due_at = now + timedelta(days=self.interval_days)
 
         if grade == ReviewGrade.AGAIN:
             self.status = WordStatus.NEEDS_REVIEW
-        elif self.repetitions >= 3 and self.ease_factor >= 2.5:
+        elif self.repetitions >= 3 and self.interval_days >= LEARNED_INTERVAL_DAYS:
+            # Olgunluk aralıkla ölçülür: tek bir "Zor" değerlendirmesi ease'i
+            # düşürüp durumu kalıcı olarak kilitlemesin.
             self.status = WordStatus.LEARNED
         else:
             self.status = WordStatus.LEARNING

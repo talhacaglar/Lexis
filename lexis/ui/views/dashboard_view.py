@@ -204,9 +204,11 @@ class DashboardView(QWidget):
         self._refresh_words(words)
 
     def _refresh_stats(self, stats: WordStats) -> None:
-        # Çalış butonunu güncelle (kaç kelime tekrar bekliyor)
-        if stats.due_today > 0:
-            self._practice_btn.setText(f"  Çalış ({stats.due_today})")
+        # Çalış butonu, çalışma kuyruğunun tamamını sayar: planlı tekrarlar +
+        # hiç çalışılmamış kelimeler (get_due_words da ikisini birden döndürür).
+        queue = stats.practice_queue_size
+        if queue > 0:
+            self._practice_btn.setText(f"  Çalış ({queue})")
             self._practice_btn.setEnabled(True)
         else:
             self._practice_btn.setText("  Çalış")
@@ -220,7 +222,7 @@ class DashboardView(QWidget):
 
         cards = [
             (str(stats.total), "Toplam Kelime", Colors.ACCENT_LIGHT),
-            (str(stats.due_today), "Bugün Tekrar", Colors.STATUS_REVIEW),
+            (str(stats.practice_queue_size), "Bugün Tekrar", Colors.STATUS_REVIEW),
             (str(stats.learning), "Öğreniyorum", Colors.WARNING),
             (str(stats.learned), "Öğrendim", Colors.SUCCESS),
             (str(stats.favorites), "Favori", Colors.FAVORITE),
