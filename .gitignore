@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual env
+.venv/
+venv/
+
+# Local config / secrets
+.env
+
+# Lexis local data
+*.db
+*.db-wal
+*.db-shm
+
+# Packaging artifacts
+packaging/*.AppImage
+packaging/AppDir/
+
+# AUR / makepkg build çıktıları (repoda tutulmamalı)
+packaging/aur/pkg/
+packaging/aur/src/
+packaging/aur/lexis/
+packaging/aur/*.pkg.tar.zst
+
+# OS / editor
+.DS_Store
+*.swp

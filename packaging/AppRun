@@ -1,0 +1,11 @@
+#!/bin/sh
+# AppRun for Lexis AppImage
+
+HERE="$(dirname "$(readlink -f "${0}")")"
+
+# Library path ayarlamaları (PyQt bağımlılıkları veya sistem kütüphaneleri için)
+export LD_LIBRARY_PATH="${HERE}/usr/bin:${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+export PYTHONPATH="${HERE}/usr/bin:${PYTHONPATH}"
+
+# Asıl uygulamayı başlat
+exec "${HERE}/usr/bin/lexis" "$@"
