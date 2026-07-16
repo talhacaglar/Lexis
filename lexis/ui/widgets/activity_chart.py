@@ -60,7 +60,9 @@ class ActivityChart(QWidget):
         plot_height = self.height() - LABEL_HEIGHT - VALUE_HEIGHT
 
         accent = QColor(Colors.ACCENT)
-        muted_bar = QColor(Colors.BG_ELEVATED)
+        # Boş günün izi kart zemininde görünmeli: BG_ELEVATED açık temada
+        # kart arka planıyla aynı renk olduğu için çubuk kayboluyordu.
+        muted_bar = QColor(Colors.BORDER)
         text_muted = QColor(Colors.TEXT_MUTED)
 
         font = QFont(painter.font())

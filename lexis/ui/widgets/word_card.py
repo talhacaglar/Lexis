@@ -30,6 +30,22 @@ from lexis.ui.widgets.common import StatusBadge
 PREVIEW_CHARS = 110
 MAX_TAGS = 3
 
+# Kart ızgarası geometrisi — dashboard ve kütüphane aynı ölçüleri kullanır.
+MIN_CARD_WIDTH = 300
+MAX_COLUMNS = 4
+GRID_MARGIN = 36
+GRID_SPACING = 14
+
+
+def grid_columns(available_width: int) -> int:
+    """
+    Verilen genişliğe sığan sütun sayısı.
+
+    Sabit sütun sayısı dar pencerelerde kartları eziyordu.
+    """
+    width = available_width - GRID_MARGIN * 2
+    return max(1, min(MAX_COLUMNS, (width + GRID_SPACING) // (MIN_CARD_WIDTH + GRID_SPACING)))
+
 
 class WordCard(QFrame):
     """Tek bir kelimeyi temsil eden tıklanabilir kart."""

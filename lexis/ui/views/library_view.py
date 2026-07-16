@@ -23,15 +23,10 @@ from PyQt6.QtWidgets import (
 from lexis.domain.models import SUPPORTED_LANGUAGES, Word, WordStatus
 from lexis.services.word_service import WordService
 from lexis.ui.theme import repolish
-from lexis.ui.widgets.word_card import WordCard
+from lexis.ui.widgets.word_card import WordCard, grid_columns
 
 # Sayfa başına kelime; kütüphane büyüdüğünde tüm tablo belleğe çekilmesin.
 PAGE_SIZE = 60
-
-MIN_CARD_WIDTH = 300
-MAX_COLUMNS = 4
-GRID_MARGIN = 36
-GRID_SPACING = 14
 
 
 class LibraryView(QWidget):
@@ -374,13 +369,17 @@ class LibraryView(QWidget):
 
     def _columns(self) -> int:
         """Sütun sayısını viewport genişliğinden hesaplar."""
-        width = self._scroll.viewport().width() - GRID_MARGIN * 2
-        return max(1, min(MAX_COLUMNS, (width + GRID_SPACING) // (MIN_CARD_WIDTH + GRID_SPACING)))
+        return grid_columns(self._scroll.viewport().width())
 
     def _relayout_grid(self) -> None:
+        # Önce ızgarayı boşalt: aynı widget'ı yeni hücreye eklemek eskisini
+        # bırakmadığı için satırlar üst üste biniyordu. takeAt widget'ı yok
+        # etmez, havuzda kalır.
+        while self._grid_layout.count():
+            self._grid_layout.takeAt(0)
+
         cols = self._columns()
-        visible = self._word_cards[: self._word_cards_used]
-        for i, card in enumerate(visible):
+        for i, card in enumerate(self._word_cards[: self._word_cards_used]):
             self._grid_layout.addWidget(card, i // cols, i % cols)
 
     def resizeEvent(self, event) -> None:

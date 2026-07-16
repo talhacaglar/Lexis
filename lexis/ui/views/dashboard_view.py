@@ -24,8 +24,11 @@ from lexis.domain.models import Word, WordStats
 from lexis.services.word_service import WordService
 from lexis.ui.icons import colored_icon
 from lexis.ui.theme import Colors
+from lexis.ui.widgets.activity_chart import ActivityChart
 from lexis.ui.widgets.common import SectionLabel
-from lexis.ui.widgets.word_card import WordCard
+from lexis.ui.widgets.word_card import WordCard, grid_columns
+
+ACTIVITY_DAYS = 7
 
 _TR_LOCALE = QLocale(QLocale.Language.Turkish, QLocale.Country.Turkey)
 
@@ -93,6 +96,8 @@ class DashboardView(QWidget):
         super().__init__(parent)
         self._service = word_service
         self._word_cards: list[WordCard] = []
+        self._streak = 0
+        self._last_columns = 0
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -155,6 +160,24 @@ class DashboardView(QWidget):
         self._stats_layout.setSpacing(12)
         layout.addWidget(self._stats_container)
 
+        # ── Aktivite Grafiği ──
+        activity_card = QFrame()
+        activity_card.setObjectName("card")
+        activity_layout = QVBoxLayout(activity_card)
+        activity_layout.setContentsMargins(18, 16, 18, 12)
+        activity_layout.setSpacing(10)
+
+        activity_header = QHBoxLayout()
+        activity_header.addWidget(SectionLabel("SON 7 GÜN"), 1)
+        self._activity_summary = QLabel("")
+        self._activity_summary.setObjectName("mutedText")
+        activity_header.addWidget(self._activity_summary)
+        activity_layout.addLayout(activity_header)
+
+        self._activity_chart = ActivityChart()
+        activity_layout.addWidget(self._activity_chart)
+        layout.addWidget(activity_card)
+
         # ── Recent Words Section ──
         recent_header = QHBoxLayout()
         recent_label = SectionLabel("SON EKLENENLER")
@@ -191,9 +214,20 @@ class DashboardView(QWidget):
     def refresh(self) -> None:
         """Veritabanından güncel veriyi yükler ve görünümü günceller."""
         stats = self._service.get_stats()
+        self._streak = self._service.get_streak()
         self._refresh_stats(stats)
+        self._refresh_activity()
         words = self._service.get_recent(limit=12)
         self._refresh_words(words)
+
+    def _refresh_activity(self) -> None:
+        counts = self._service.get_review_counts(days=ACTIVITY_DAYS)
+        self._activity_chart.set_counts(counts)
+
+        total = sum(counts.values())
+        self._activity_summary.setText(
+            f"{total} tekrar" if total else "Bu hafta henüz çalışılmadı"
+        )
 
     def _refresh_stats(self, stats: WordStats) -> None:
         # Çalış butonu, çalışma kuyruğunun tamamını sayar: planlı tekrarlar +
@@ -215,6 +249,7 @@ class DashboardView(QWidget):
         cards = [
             (str(stats.total), "Toplam Kelime", "accent"),
             (str(stats.practice_queue_size), "Bugün Tekrar", "review"),
+            (f"🔥 {self._streak}" if self._streak else "0", "Günlük Seri", "streak"),
             (str(stats.learning), "Öğreniyorum", "warning"),
             (str(stats.learned), "Öğrendim", "success"),
             (str(stats.favorites), "Favori", "favorite"),
@@ -241,12 +276,32 @@ class DashboardView(QWidget):
         self._empty_label.setVisible(False)
         self._grid_widget.setVisible(True)
 
-        cols = 3
-        for i, word in enumerate(words):
+        for word in words:
             card = WordCard(word)
             card.clicked.connect(self.word_clicked)
             card.favorite_toggled.connect(self.favorite_toggled)
             card.delete_requested.connect(self.delete_requested)
             self._word_cards.append(card)
+        self._relayout_grid()
+
+    def _columns(self) -> int:
+        """Sütun sayısını mevcut genişlikten hesaplar (sabit 3 değil)."""
+        return grid_columns(self.width())
+
+    def _relayout_grid(self) -> None:
+        # Kartlar önce ızgaradan çıkarılır: aynı widget'ı yeni bir hücreye
+        # eklemek eski hücreyi boşaltmadığı için satırlar üst üste biniyordu.
+        # takeAt yalnızca yerleşimden çıkarır, widget'ları yok etmez.
+        while self._grid_layout.count():
+            self._grid_layout.takeAt(0)
+
+        cols = self._columns()
+        for i, card in enumerate(self._word_cards):
             self._grid_layout.addWidget(card, i // cols, i % cols)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self._word_cards and self._columns() != self._last_columns:
+            self._last_columns = self._columns()
+            self._relayout_grid()
 
