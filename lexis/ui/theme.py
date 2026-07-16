@@ -896,6 +896,47 @@ QLabel#cardTag {{
     font-weight: 500;
 }}
 
+/* ── Toast bildirimleri ── */
+QFrame#toast {{
+    background-color: {Colors.BG_ELEVATED};
+    border: 1px solid {Colors.BORDER};
+    border-left: 3px solid {Colors.BORDER_FOCUS};
+    border-radius: 10px;
+}}
+
+QFrame#toast[level="success"] {{
+    border-left: 3px solid {Colors.SUCCESS};
+}}
+
+QFrame#toast[level="error"] {{
+    border-left: 3px solid {Colors.ERROR};
+}}
+
+QFrame#toast[level="info"] {{
+    border-left: 3px solid {Colors.INFO};
+}}
+
+QLabel#toastText {{
+    color: {Colors.TEXT_PRIMARY};
+    font-size: 13px;
+    background: transparent;
+}}
+
+QPushButton#toastAction {{
+    background: transparent;
+    color: {Colors.ACCENT_LIGHT};
+    border: none;
+    padding: 4px 8px;
+    font-size: 13px;
+    font-weight: 700;
+}}
+
+QPushButton#toastAction:hover {{
+    color: {Colors.ACCENT};
+    background: {Colors.BG_HOVER};
+    border-radius: 6px;
+}}
+
 /* ── Context Menu ── */
 QMenu {{
     background-color: {Colors.BG_SURFACE};

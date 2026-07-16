@@ -8,6 +8,8 @@ Tekrar / Zor / İyi / Kolay olarak değerlendirir (SM-2).
 
 from __future__ import annotations
 
+import logging
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import (
@@ -24,12 +26,15 @@ from lexis.domain.models import ReviewGrade, Word
 from lexis.services.word_service import WordService
 from lexis.ui.widgets.common import Divider
 
+logger = logging.getLogger(__name__)
+
 
 class PracticeView(QWidget):
     """Aralıklı tekrar çalışma oturumu görünümü."""
 
     back_requested = pyqtSignal()
     session_finished = pyqtSignal()  # dashboard/kütüphane yenilensin
+    error_occurred = pyqtSignal(str)  # MainWindow toast gösterir
 
     def __init__(self, word_service: WordService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -256,9 +261,16 @@ class PracticeView(QWidget):
             return
         try:
             self._service.review_word(word.id, grade)
-            self._reviewed += 1
         except Exception:
-            pass
+            # Kaydedilemeyen değerlendirmede karta ilerlemek tekrarı sessizce
+            # kaybettirirdi; kullanıcı uyarılır ve kart yerinde kalır.
+            logger.exception("Değerlendirme kaydedilemedi: %s", word.id)
+            self.error_occurred.emit(
+                f"'{word.term}' için değerlendirme kaydedilemedi. Tekrar deneyin."
+            )
+            return
+
+        self._reviewed += 1
         self._index += 1
         self._show_current()
 

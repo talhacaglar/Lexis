@@ -27,6 +27,7 @@ from lexis.services.export_service import ExportService
 from lexis.services.word_service import WordService
 from lexis.ui.theme import repolish
 from lexis.ui.widgets.common import Divider
+from lexis.workers.task_worker import TaskWorker
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ class SettingsView(QWidget):
         super().__init__(parent)
         self._service = word_service
         self._export = export_service
+        self._workers: list[TaskWorker] = []
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -331,6 +333,35 @@ class SettingsView(QWidget):
             logger.exception("API anahtarı kaydedilemedi")
             self._set_status(self._api_status, f"Hata: {e}", "error")
 
+    def _run_in_background(
+        self,
+        fn,
+        status_label: QLabel,
+        busy_message: str,
+        on_success,
+    ) -> None:
+        """
+        Bloklayan bir dosya işlemini arka planda çalıştırır.
+
+        Büyük kütüphanelerde senkron içe/dışa aktarma pencereyi dondururdu.
+        Worker referansı saklanır; aksi hâlde GC bitmeden toplayabilir.
+        """
+        self._set_status(status_label, busy_message, "info")
+
+        worker = TaskWorker(fn, parent=self)
+        self._workers.append(worker)
+
+        def cleanup() -> None:
+            if worker in self._workers:
+                self._workers.remove(worker)
+
+        worker.succeeded.connect(on_success)
+        worker.failed.connect(
+            lambda msg: self._set_status(status_label, f"Hata: {msg}", "error")
+        )
+        worker.finished.connect(cleanup)
+        worker.start()
+
     def _run_export(self, fmt: str) -> None:
         """JSON/CSV dışa aktarımını tek yerden yürütür."""
         path, _ = QFileDialog.getSaveFileName(
@@ -341,13 +372,16 @@ class SettingsView(QWidget):
         )
         if not path:
             return
-        try:
-            export = self._export.export_json if fmt == "json" else self._export.export_csv
-            count = export(Path(path))
-            self._set_status(self._export_status, f"✓ {count} kelime dışa aktarıldı", "success")
-        except Exception as e:
-            logger.exception("Dışa aktarma başarısız (%s)", fmt)
-            self._set_status(self._export_status, f"Hata: {e}", "error")
+
+        export = self._export.export_json if fmt == "json" else self._export.export_csv
+        self._run_in_background(
+            lambda: export(Path(path)),
+            self._export_status,
+            "Dışa aktarılıyor...",
+            lambda count: self._set_status(
+                self._export_status, f"✓ {count} kelime dışa aktarıldı", "success"
+            ),
+        )
 
     def _run_import(self, fmt: str) -> None:
         """JSON/CSV içe aktarımını tek yerden yürütür."""
@@ -356,9 +390,11 @@ class SettingsView(QWidget):
         )
         if not path:
             return
-        try:
-            do_import = self._export.import_json if fmt == "json" else self._export.import_csv
-            imported, skipped = do_import(Path(path))
+
+        do_import = self._export.import_json if fmt == "json" else self._export.import_csv
+
+        def on_done(result) -> None:
+            imported, skipped = result
             self._set_status(
                 self._import_status,
                 f"✓ {imported} kelime içe aktarıldı, {skipped} atlandı",
@@ -366,9 +402,13 @@ class SettingsView(QWidget):
             )
             self._refresh_stats_label()
             self.settings_changed.emit()
-        except Exception as e:
-            logger.exception("İçe aktarma başarısız (%s)", fmt)
-            self._set_status(self._import_status, f"Hata: {e}", "error")
+
+        self._run_in_background(
+            lambda: do_import(Path(path)),
+            self._import_status,
+            "İçe aktarılıyor...",
+            on_done,
+        )
 
     def _trigger_theme_change(self, theme_name: str) -> None:
         save_theme(theme_name)

@@ -137,6 +137,15 @@ class WordService:
         """Kelimeyi siler."""
         self._repo.delete(word_id)
 
+    def restore_word(self, word: Word) -> Word:
+        """
+        Silinmiş bir kelimeyi aynı id ile geri yükler ("geri al" için).
+
+        Not: tekrar geçmişi (review_log) silme sırasında CASCADE ile gittiği
+        için geri gelmez; kelimenin kendisi ve SM-2 durumu korunur.
+        """
+        return self._repo.create(word)
+
     def toggle_favorite(self, word_id: str) -> Word:
         """Favorilere ekler/çıkarır."""
         word = self._repo.get_by_id(word_id)

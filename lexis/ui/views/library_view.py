@@ -36,6 +36,7 @@ class LibraryView(QWidget):
 
     word_clicked = pyqtSignal(str)       # word_id
     favorite_toggled = pyqtSignal(str)   # word_id
+    delete_requested = pyqtSignal(str)   # word_id — silmeyi MainWindow yürütür
     open_add_dialog = pyqtSignal()
 
     def __init__(self, word_service: WordService, parent: QWidget | None = None) -> None:
@@ -246,21 +247,9 @@ class LibraryView(QWidget):
             card = WordCard(word)
             card.clicked.connect(self.word_clicked)
             card.favorite_toggled.connect(self.favorite_toggled)
-            card.delete_requested.connect(self._delete_word)
+            card.delete_requested.connect(self.delete_requested)
             self._word_cards.append(card)
             self._grid_layout.addWidget(card, i // cols, i % cols)
-
-    def _delete_word(self, word_id: str) -> None:
-        from PyQt6.QtWidgets import QMessageBox
-        reply = QMessageBox.question(
-            self,
-            "Kelimeyi Sil",
-            "Bu kelimeyi silmek istediğinizden emin misiniz?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            self._service.delete_word(word_id)
-            self.refresh()
 
     def refresh(self) -> None:
         self._apply_filters()

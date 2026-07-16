@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from logging.handlers import RotatingFileHandler
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -25,11 +26,30 @@ from lexis.ui.windows.main_window import MainWindow
 
 
 def setup_logging() -> None:
+    """
+    Konsola ve ~/.lexis/lexis.log dosyasına loglar.
+
+    Masaüstü uygulaması genelde terminalden başlatılmadığı için konsol çıktısı
+    kaybolur; dosya kaydı olmadan çökmeleri sonradan teşhis etmek mümkün olmaz.
+    """
     settings = get_settings()
+    level = getattr(logging, settings.log_level.upper(), logging.INFO)
+
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    try:
+        log_path = settings.db_path.parent / "lexis.log"
+        handlers.append(
+            RotatingFileHandler(log_path, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        )
+    except OSError:
+        # Log dosyası açılamıyorsa (salt-okunur dizin vb.) uygulama yine de açılmalı.
+        pass
+
     logging.basicConfig(
-        level=getattr(logging, settings.log_level, logging.INFO),
+        level=level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
+        handlers=handlers,
     )
 
 

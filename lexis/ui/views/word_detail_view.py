@@ -7,11 +7,14 @@ Tanım, eş/zıt anlamlılar, örnek cümleler, durum yönetimi.
 
 from __future__ import annotations
 
+import logging
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -24,7 +27,9 @@ from lexis.ui.theme import repolish
 from lexis.ui.widgets.common import Chip, Divider, SectionLabel, StatusBadge
 from lexis.ui.widgets.loading_overlay import LoadingOverlay
 from lexis.ui.widgets.tag_badge import TagBadge
-from lexis.workers.ai_worker import AIGenerationWorker
+from lexis.workers.task_worker import TaskWorker
+
+logger = logging.getLogger(__name__)
 
 
 class WordDetailView(QWidget):
@@ -34,14 +39,15 @@ class WordDetailView(QWidget):
     """
 
     back_requested = pyqtSignal()
-    word_deleted = pyqtSignal(str)    # word_id
-    word_updated = pyqtSignal(str)    # word_id
+    delete_requested = pyqtSignal(str)  # word_id
+    word_updated = pyqtSignal(str)      # word_id
+    error_occurred = pyqtSignal(str)    # MainWindow toast gösterir
 
     def __init__(self, word_service: WordService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._service = word_service
         self._word: Word | None = None
-        self._ai_worker: AIGenerationWorker | None = None
+        self._ai_worker: TaskWorker | None = None
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -286,11 +292,14 @@ class WordDetailView(QWidget):
     def load_word(self, word_id: str) -> None:
         """Belirtilen kelimeyi yükler ve görünümü günceller."""
         try:
-            word = self._service.get_by_id(word_id)
-            self._word = word
+            self._word = self._service.get_by_id(word_id)
             self._render_word()
         except Exception:
-            pass
+            # Sessiz geçmek bir önceki kelimeyi ekranda bırakıp kullanıcıya
+            # yanlış kaydı gösteriyordu.
+            logger.exception("Kelime yüklenemedi: %s", word_id)
+            self.error_occurred.emit("Kelime yüklenemedi.")
+            self.back_requested.emit()
 
     def _render_word(self) -> None:
         if not self._word:
@@ -435,41 +444,41 @@ class WordDetailView(QWidget):
         self.word_updated.emit(self._word.id)
 
     def _delete_word(self) -> None:
-        if not self._word:
-            return
-        from PyQt6.QtWidgets import QMessageBox
-        reply = QMessageBox.question(
-            self,
-            "Kelimeyi Sil",
-            f"'{self._word.term}' kelimesini silmek istediğinizden emin misiniz?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            word_id = self._word.id
-            self._service.delete_word(word_id)
-            self.word_deleted.emit(word_id)
-            self.back_requested.emit()
+        """Silmeyi MainWindow yürütür (onay + geri alınabilir toast orada)."""
+        if self._word:
+            self.delete_requested.emit(self._word.id)
 
     def _regenerate_ai(self) -> None:
         if not self._word:
             return
         if not self._service.ai_configured:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "API Anahtarı Yok", "Lütfen Ayarlar'dan Gemini API anahtarınızı girin.")
+            QMessageBox.warning(
+                self,
+                "API Anahtarı Yok",
+                "Lütfen Ayarlar'dan Gemini API anahtarınızı girin.",
+            )
+            return
+        # Süren bir üretim varken ikincisini başlatma.
+        if self._ai_worker is not None and self._ai_worker.isRunning():
             return
 
-        self._loading.show_loading(f"'{self._word.term}' için içerik yenileniyor...")
+        term, language = self._word.term, self._word.language
+        self._loading.show_loading(f"'{term}' için içerik yenileniyor...")
         self._regen_btn.setEnabled(False)
 
-        self._ai_worker = AIGenerationWorker(
-            self._service._ai,
-            self._word.term,
-            self._word.language,
-            parent=self,
+        self._ai_worker = TaskWorker(
+            lambda: self._service.generate_ai_content(term, language), parent=self
         )
-        self._ai_worker.finished.connect(self._on_regen_finished)
-        self._ai_worker.error.connect(self._on_regen_error)
+        self._ai_worker.succeeded.connect(self._on_regen_finished)
+        self._ai_worker.failed.connect(self._on_regen_error)
+        self._ai_worker.finished.connect(self._clear_worker)
         self._ai_worker.start()
+
+    def _clear_worker(self) -> None:
+        """Biten worker'ı bırakır; aksi hâlde Qt sahipliği nedeniyle birikirler."""
+        if self._ai_worker is not None:
+            self._ai_worker.deleteLater()
+            self._ai_worker = None
 
     def _on_regen_finished(self, data: dict) -> None:
         self._loading.hide_loading()
@@ -490,8 +499,7 @@ class WordDetailView(QWidget):
     def _on_regen_error(self, message: str) -> None:
         self._loading.hide_loading()
         self._regen_btn.setEnabled(True)
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.warning(self, "Hata", f"İçerik yenilenemedi:\n{message}")
+        self.error_occurred.emit(f"İçerik yenilenemedi: {message}")
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

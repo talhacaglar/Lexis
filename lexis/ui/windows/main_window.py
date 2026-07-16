@@ -6,11 +6,14 @@ Ana pencere: sidebar navigasyonu + QStackedWidget içerik alanı.
 
 from __future__ import annotations
 
+import logging
+
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QCursor, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -28,6 +31,9 @@ from lexis.ui.views.settings_view import SettingsView
 from lexis.ui.views.word_detail_view import WordDetailView
 from lexis.ui.widgets.add_word_dialog import AddWordDialog
 from lexis.ui.widgets.common import Divider
+from lexis.ui.widgets.toast import ToastManager
+
+logger = logging.getLogger(__name__)
 
 # Page indices
 PAGE_DASHBOARD = 0
@@ -142,10 +148,15 @@ class MainWindow(QWidget):
         self._service = word_service
         self._export_service = export_service
         self._previous_page: int | None = None
+        self.toasts = ToastManager(self)
         self._setup_ui()
         self._setup_connections()
         self._setup_shortcuts()
         self._navigate_to(PAGE_DASHBOARD)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.toasts.reposition()
 
     def _setup_shortcuts(self) -> None:
         """Uygulama geneli klavye kısayolları."""
@@ -199,15 +210,17 @@ class MainWindow(QWidget):
         self._dashboard.open_add_dialog.connect(self._open_add_dialog)
         self._dashboard.word_clicked.connect(self._show_word_detail)
         self._dashboard.favorite_toggled.connect(self._toggle_favorite)
+        self._dashboard.delete_requested.connect(self._delete_word)
 
         # Library
         self._library.open_add_dialog.connect(self._open_add_dialog)
         self._library.word_clicked.connect(self._show_word_detail)
         self._library.favorite_toggled.connect(self._toggle_favorite)
+        self._library.delete_requested.connect(self._delete_word)
 
         # Detail
         self._detail.back_requested.connect(self._go_back)
-        self._detail.word_deleted.connect(self._on_word_changed)
+        self._detail.delete_requested.connect(self._delete_word)
         self._detail.word_updated.connect(self._on_word_changed)
 
         # Settings
@@ -217,6 +230,10 @@ class MainWindow(QWidget):
         self._dashboard.start_practice.connect(self._start_practice)
         self._practice.back_requested.connect(self._go_back)
         self._practice.session_finished.connect(self._on_word_changed)
+
+        # Görünümlerden gelen hatalar kullanıcıya toast olarak gösterilir.
+        self._detail.error_occurred.connect(self.toasts.error)
+        self._practice.error_occurred.connect(self.toasts.error)
 
     def current_page(self) -> int:
         """Şu an görüntülenen sayfanın indeksi (tema yeniden uygulanırken korunur)."""
@@ -269,7 +286,59 @@ class MainWindow(QWidget):
             self._dashboard.refresh()
             self._library.refresh()
         except Exception:
-            pass
+            logger.exception("Favori durumu değiştirilemedi: %s", word_id)
+            self.toasts.error("Favori durumu değiştirilemedi.")
+
+    def _delete_word(self, word_id: str) -> None:
+        """
+        Kelimeyi onay alarak siler ve geri alma imkânı sunar.
+
+        Üç ekran (dashboard, kütüphane, detay) da buraya bağlanır; silme mantığı
+        ve geri alma tek yerde durur.
+        """
+        try:
+            word = self._service.get_by_id(word_id)
+        except Exception:
+            logger.exception("Silinecek kelime okunamadı: %s", word_id)
+            self.toasts.error("Kelime bulunamadı.")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Kelimeyi Sil",
+            f"'{word.term}' kelimesini silmek istediğinizden emin misiniz?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            self._service.delete_word(word_id)
+        except Exception:
+            logger.exception("Kelime silinemedi: %s", word_id)
+            self.toasts.error("Kelime silinemedi.")
+            return
+
+        if self._stack.currentIndex() == PAGE_DETAIL:
+            self._go_back()
+        self._on_word_changed()
+
+        # Silinen kelime bellekte tutulur; "Geri al" aynı id ile geri yazar.
+        self.toasts.show(
+            f"'{word.term}' silindi.",
+            action_label="Geri al",
+            on_action=lambda: self._restore_word(word),
+            duration_ms=8000,
+        )
+
+    def _restore_word(self, word) -> None:
+        try:
+            self._service.restore_word(word)
+            self._on_word_changed()
+            self.toasts.success(f"'{word.term}' geri yüklendi.")
+        except Exception:
+            logger.exception("Kelime geri yüklenemedi: %s", word.id)
+            self.toasts.error("Kelime geri yüklenemedi.")
 
     def _go_back(self) -> None:
         target = self._previous_page if self._previous_page is not None else PAGE_DASHBOARD

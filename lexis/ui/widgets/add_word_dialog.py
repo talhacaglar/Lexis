@@ -28,7 +28,7 @@ from lexis.services.word_service import WordService
 from lexis.ui.theme import repolish
 from lexis.ui.widgets.common import Divider, SectionLabel
 from lexis.ui.widgets.loading_overlay import LoadingOverlay
-from lexis.workers.ai_worker import AIGenerationWorker
+from lexis.workers.task_worker import TaskWorker
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class AddWordDialog(QDialog):
     def __init__(self, word_service: WordService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._service = word_service
-        self._ai_worker: AIGenerationWorker | None = None
+        self._ai_worker: TaskWorker | None = None
         self._ai_data: dict | None = None
 
         self._setup_ui()
@@ -238,16 +238,28 @@ class AddWordDialog(QDialog):
         if not term:
             return
 
+        # Süren bir üretim varken ikinci worker başlatmak, iki yanıtın
+        # birbirinin üstüne yazmasına yol açardı.
+        if self._ai_worker is not None and self._ai_worker.isRunning():
+            return
+
         lang_code = self._lang_combo.currentData()
         self._loading.show_loading(f"'{term}' için içerik üretiliyor...")
         self._generate_btn.setEnabled(False)
 
-        ai_service = self._service._ai
-
-        self._ai_worker = AIGenerationWorker(ai_service, term, lang_code, parent=self)
-        self._ai_worker.finished.connect(self._on_ai_finished)
-        self._ai_worker.error.connect(self._on_ai_error)
+        self._ai_worker = TaskWorker(
+            lambda: self._service.generate_ai_content(term, lang_code), parent=self
+        )
+        self._ai_worker.succeeded.connect(self._on_ai_finished)
+        self._ai_worker.failed.connect(self._on_ai_error)
+        self._ai_worker.finished.connect(self._clear_worker)
         self._ai_worker.start()
+
+    def _clear_worker(self) -> None:
+        """Biten worker'ı bırakır; aksi hâlde Qt sahipliği nedeniyle birikirler."""
+        if self._ai_worker is not None:
+            self._ai_worker.deleteLater()
+            self._ai_worker = None
 
     def _on_ai_finished(self, data: dict) -> None:
         self._loading.hide_loading()
