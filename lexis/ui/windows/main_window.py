@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 
 from lexis.services.export_service import ExportService
 from lexis.services.word_service import WordService
+from lexis.ui.animations import fade_in
 from lexis.ui.icons import colored_icon
 from lexis.ui.theme import Colors
 from lexis.ui.views.dashboard_view import DashboardView
@@ -261,6 +262,7 @@ class MainWindow(QWidget):
         if current != PAGE_DETAIL:
             self._previous_page = current
 
+        page_changed = current != page
         self._stack.setCurrentIndex(page)
         self._sidebar.set_active_page(page)
 
@@ -271,6 +273,12 @@ class MainWindow(QWidget):
             self._library.refresh()
         elif page == PAGE_SETTINGS:
             self._settings.refresh()
+
+        # Tazelemeden sonra: içerik yerine oturmuş hâliyle belirsin.
+        # Aynı sayfaya tekrar gidildiğinde (ör. Ctrl+F ile kütüphaneye odak)
+        # ekranın boşuna yanıp sönmesi engellenir.
+        if page_changed:
+            fade_in(self._stack.currentWidget())
 
     def _open_add_dialog(self) -> None:
         dialog = AddWordDialog(self._service, parent=self)

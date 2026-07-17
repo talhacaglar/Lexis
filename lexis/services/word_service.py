@@ -249,8 +249,25 @@ class WordService:
         word.ai_generated = True
         return word
 
-    def configure_ai(self, api_key: str) -> None:
-        """AI istemcisini yeni API anahtarıyla yeniden yapılandırır."""
+    def suggest_terms(self, term: str, language: str = "en") -> list[str]:
+        """
+        Yanlış yazılmış bir kelime için alternatif önerir.
+
+        Öneriler daima açık sözlüklerden gelir: anahtarsız çalışır ve Gemini
+        modunda da kullanılabilir.
+        """
+        return self._open_dict.suggest_terms(term, language)
+
+    def complete_terms(self, prefix: str, language: str = "en") -> list[str]:
+        """Yazılmakta olan kelimeyi tamamlar (açık sözlüklerden)."""
+        return self._open_dict.complete_terms(prefix, language)
+
+    def configure_ai(self, api_key: str | None) -> None:
+        """
+        AI istemcisini yeni API anahtarıyla yeniden yapılandırır.
+
+        Boş anahtar Gemini'yi kapatır; içerik açık sözlükten gelmeye devam eder.
+        """
         self._ai.configure(api_key)
 
     @property

@@ -99,7 +99,7 @@ def test_english_word_collects_full_content(service, fake_network):
     fake_network["tatoeba"] = TATOEBA_RESPONSE
     fake_network["mymemory"] = {
         "responseStatus": 200,
-        "responseData": {"translatedText": "Çok kısa süre süren."},
+        "responseData": {"translatedText": "Çok kısa süre süren.", "match": 0.9},
     }
 
     data = service.generate_word_data("ephemeral", "en")
@@ -117,7 +117,7 @@ def test_non_english_word_uses_wiktionary(service, fake_network):
     fake_network["wiktionary"] = WIKTIONARY_RESPONSE
     fake_network["mymemory"] = {
         "responseStatus": 200,
-        "responseData": {"translatedText": "ev"},
+        "responseData": {"translatedText": "ev", "match": 0.9},
     }
 
     data = service.generate_word_data("Haus", "de")
@@ -162,6 +162,157 @@ def test_unsupported_language_raises(service, fake_network):
         service.generate_word_data("Haus", "sv")
 
 
+def test_english_falls_back_to_wiktionary_when_dictionaryapi_has_no_entry(service, fake_network):
+    """
+    dictionaryapi.dev argo/az bilinen kelimelerde (örn. "yeet", "rizz") 404
+    veriyor; Wiktionary'nin İngilizce bölümü yedek olarak denenmeli.
+    """
+    fake_network["dictionaryapi.dev"] = []  # 404 → boş liste
+    fake_network["wiktionary"] = WIKTIONARY_RESPONSE
+    fake_network["mymemory"] = None
+
+    data = service.generate_word_data("surname-ish-slang", "en")
+
+    assert data["definition_short"] == "A surname"
+    assert data["part_of_speech"] == "Proper noun"
+
+
+# ── "Şunu mu demek istediniz?" önerileri ──────────────────────────────────
+
+
+def _datamuse(routes, *, sl: list[str], sp: list[str]) -> None:
+    """
+    Datamuse'un iki ucunu ayrı ayrı yanıtlar (sl: okunuş, sp: yazım).
+
+    Not: gerçek API, sorgu kendi sözlüğündeyse onu ilk sırada döndürür —
+    yanlış yazımlar da sözlüğünde olduğu için bu sık görülür. Sahte yanıtlar
+    bu davranışı taklit etmeli, yoksa sıralama testleri yanıltıcı olur.
+    """
+
+    def respond(params):
+        words = sl if "sl" in (params or {}) else sp
+        return [{"word": w, "score": 100} for w in words]
+
+    routes["datamuse"] = respond
+
+
+def test_suggestions_prefer_source_order_over_string_similarity(service, fake_network):
+    """
+    Kaynağın alaka sıralaması korunmalı.
+
+    Benzerliğe göre yeniden sıralamak ölçüldü ve daha kötüydü: "freind" için
+    harfçe yakın ama uydurma olan "frind"/"feind", gerçek düzeltme "friend"i
+    listenin dışına itiyordu.
+    """
+    _datamuse(
+        fake_network,
+        sl=["freind", "friend", "freund"],
+        sp=["freind", "frind", "feind"],
+    )
+
+    assert service.suggest_terms("freind", "en")[0] == "friend"
+
+
+def test_suggestions_exclude_the_query_itself(service, fake_network):
+    """Datamuse sözlüğünde yanlış yazımlar da var; sorgunun kendisi öneri değil."""
+    _datamuse(fake_network, sl=["recieve", "receive"], sp=["recieve"])
+
+    suggestions = service.suggest_terms("recieve", "en")
+
+    assert "recieve" not in [s.casefold() for s in suggestions]
+    assert "receive" in suggestions
+
+
+def test_suggestions_drop_unrelated_words(service, fake_network):
+    """Benzerlik eşiği alakasız adayları elemeli."""
+    _datamuse(fake_network, sl=["zebra", "helicopter"], sp=["xylophone"])
+
+    assert service.suggest_terms("recieve", "en") == []
+
+
+def test_suggestions_are_capped(service, fake_network):
+    """Arayüzü boğmamak için öneri sayısı sınırlı."""
+    _datamuse(fake_network, sl=[f"receiv{i}" for i in range(20)], sp=[])
+
+    assert len(service.suggest_terms("recieve", "en")) <= od.MAX_SUGGESTIONS
+
+
+def test_non_english_suggestions_use_wiktionary(service, fake_network):
+    """Datamuse yalnızca İngilizce; diğer diller opensearch'e düşer."""
+    fake_network["api.php"] = ["Haus", ["Hause", "Hauser", "Haustier"], [], []]
+
+    suggestions = service.suggest_terms("Haus", "de")
+
+    assert "Hause" in suggestions
+
+
+def test_completion_uses_the_autocomplete_endpoint(service, fake_network):
+    """
+    Yazarken /sug kullanılmalı, sp/sl değil.
+
+    Ölçüldü: yarım kelimede sp çöp veriyor ("ephem" → epher, phem), /sug ilk
+    sırada "ephemeral" veriyor.
+    """
+    seen: list[str] = []
+
+    def respond(params):
+        seen.append("sug" if "s" in (params or {}) else "words")
+        return [{"word": "ephemeral"}, {"word": "ephemera"}]
+
+    fake_network["datamuse.com/sug"] = respond
+
+    assert service.complete_terms("ephem", "en") == ["ephemeral", "ephemera"]
+    assert seen == ["sug"]
+
+
+def test_completion_keeps_longer_words_that_similarity_would_drop(service, fake_network):
+    """
+    Tamamlamada benzerlik eşiği uygulanmamalı.
+
+    Tamamlanan kelime yazılandan uzun olduğu için oran düşük çıkıyor:
+    "ephem" → "ephemerality" oranı 0.59, yani eşik geçerli bir tamamlamayı
+    elerdi.
+    """
+    fake_network["datamuse.com/sug"] = [{"word": "ephemerality"}]
+
+    assert service.complete_terms("ephem", "en") == ["ephemerality"]
+
+
+def test_completion_needs_a_few_letters(service, fake_network):
+    """Tek harfte her kelime eşleşir; ağa çıkmadan boş dönülmeli."""
+    calls: list = []
+    fake_network["datamuse"] = lambda params: calls.append(params) or []
+
+    assert service.complete_terms("ep", "en") == []
+    assert calls == []
+
+
+def test_completion_excludes_the_query_itself(service, fake_network):
+    """/sug tam eşleşmeyi de döndürür; yazılan kelimeyi önermenin anlamı yok."""
+    fake_network["datamuse.com/sug"] = [{"word": "thug"}, {"word": "thugs"}]
+
+    assert service.complete_terms("thug", "en") == ["thugs"]
+
+
+def test_non_english_completion_uses_wiktionary(service, fake_network):
+    fake_network["api.php"] = ["Hau", ["Haus", "Hause"], [], []]
+
+    assert service.complete_terms("Hau", "de") == ["Haus", "Hause"]
+
+
+def test_suggestion_network_failure_returns_empty(service, fake_network):
+    """Öneri bir kolaylık: ağ düşerse kelime ekleme akışı bloklanmamalı."""
+    assert service.suggest_terms("recieve", "en") == []
+
+
+def test_empty_term_makes_no_request(service, fake_network):
+    calls: list = []
+    fake_network["datamuse"] = lambda params: calls.append(params) or []
+
+    assert service.suggest_terms("   ", "en") == []
+    assert calls == []
+
+
 # ── Dayanıklılık: tek kaynak düşerse kelime yine eklenebilmeli ────────────
 
 
@@ -179,7 +330,7 @@ def test_examples_failure_leaves_word_usable(service, fake_network):
     fake_network["dictionaryapi.dev"] = DICTIONARY_RESPONSE
     fake_network["mymemory"] = {
         "responseStatus": 200,
-        "responseData": {"translatedText": "Kısa süreli."},
+        "responseData": {"translatedText": "Kısa süreli.", "match": 0.9},
     }
     fake_network["tatoeba"] = None  # örnek servisi ölü
 
@@ -187,6 +338,22 @@ def test_examples_failure_leaves_word_usable(service, fake_network):
 
     assert data["example_sentences"] == []
     assert data["definition_short"] == "Kısa süreli."
+
+
+def test_low_confidence_translation_is_rejected(service, fake_network):
+    """
+    MyMemory'nin çeviri belleği bazen alakasız eşleşmeler döndürür (düşük
+    match skoru). Bunları göstermek yerine İngilizce orijinale düşülmeli.
+    """
+    fake_network["dictionaryapi.dev"] = DICTIONARY_RESPONSE
+    fake_network["mymemory"] = {
+        "responseStatus": 200,
+        "responseData": {"translatedText": "Alakasız çeviri.", "match": 0.3},
+    }
+
+    data = service.generate_word_data("ephemeral", "en")
+
+    assert data["definition_short"] == "Lasting for a very short time."
 
 
 def test_example_without_translation_still_included(service, fake_network):
@@ -211,7 +378,7 @@ def test_translation_source_is_always_english(service, fake_network, monkeypatch
     def capture(url, params=None):
         if "mymemory" in url:
             seen.update(params or {})
-            return {"responseStatus": 200, "responseData": {"translatedText": "ev"}}
+            return {"responseStatus": 200, "responseData": {"translatedText": "ev", "match": 0.9}}
         if "wiktionary" in url:
             return WIKTIONARY_RESPONSE
         return None

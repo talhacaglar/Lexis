@@ -25,7 +25,7 @@ from lexis.domain.models import SUPPORTED_LANGUAGES
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.5-flash"
 
 # Ağ isteği zaman aşımı (ms). google-genai http_options bunu ms cinsinden bekler.
 REQUEST_TIMEOUT_MS = 30_000
@@ -183,8 +183,20 @@ class AIService:
             logger.error(f"Gemini API yapılandırma hatası: {e}")
             raise AIServiceError("API yapılandırılamadı.", original=e) from e
 
-    def configure(self, api_key: str) -> None:
-        """API anahtarını runtime'da güncelle."""
+    def configure(self, api_key: str | None) -> None:
+        """
+        API anahtarını runtime'da günceller.
+
+        Boş anahtar Gemini'yi devre dışı bırakır: istemci düşürülür ve
+        WordService açık sözlük kaynağına döner. Aksi hâlde anahtarı silmenin
+        bir yolu kalmazdı.
+        """
+        api_key = (api_key or "").strip()
+        if not api_key:
+            self._client = None
+            self._api_key = None
+            logger.info("Gemini anahtarı kaldırıldı; açık sözlük kullanılacak.")
+            return
         self._setup(api_key)
 
     @property

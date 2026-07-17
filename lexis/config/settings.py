@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # Gemini API
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash"
 
     # Veritabanı
     database_path: str | None = None

@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
 
 from lexis.domain.models import ReviewGrade, Word
 from lexis.services.word_service import WordService
+from lexis.ui.animations import DURATION_SLOW, fade_in
 from lexis.ui.widgets.common import Divider
 
 logger = logging.getLogger(__name__)
@@ -294,6 +295,8 @@ class PracticeView(QWidget):
         self._revealed = True
         self._answer_widget.setVisible(True)
         self._show_grade_buttons()
+        # Cevabın belirmesi kartın en önemli anı; hafifçe yavaş.
+        fade_in(self._answer_widget, DURATION_SLOW)
 
     def _grade(self, grade: ReviewGrade) -> None:
         word = self._current_word()

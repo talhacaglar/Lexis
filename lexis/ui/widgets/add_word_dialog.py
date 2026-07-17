@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -25,12 +25,18 @@ from PyQt6.QtWidgets import (
 
 from lexis.domain.models import SUPPORTED_LANGUAGES
 from lexis.services.word_service import WordService
+from lexis.ui.animations import DURATION_FAST, fade_in
 from lexis.ui.theme import repolish
-from lexis.ui.widgets.common import Divider, SectionLabel
+from lexis.ui.widgets.common import ClickableChip, Divider, SectionLabel
 from lexis.ui.widgets.loading_overlay import LoadingOverlay
 from lexis.workers.task_worker import TaskWorker
 
 logger = logging.getLogger(__name__)
+
+# Yazma duraklamasından sonra öneri istemeye kadar beklenen süre. 350 ms:
+# ortalama yazma hızında tuşlar arası boşluğun üstünde (her harfte istek
+# atılmaz) ama kullanıcı beklediğini hissetmeyecek kadar kısa.
+TYPING_DEBOUNCE_MS = 350
 
 
 class AddWordDialog(QDialog):
@@ -46,7 +52,15 @@ class AddWordDialog(QDialog):
         super().__init__(parent)
         self._service = word_service
         self._ai_worker: TaskWorker | None = None
+        self._suggest_worker: TaskWorker | None = None
         self._ai_data: dict | None = None
+        self._suggestion_chips: list[ClickableChip] = []
+        # Geciken bir yanıt, kullanıcı yazmaya devam ettiyse artık eskimiştir.
+        # Her istek numaralanır; yalnızca en sonuncunun yanıtı ekrana yazılır.
+        self._suggest_request_id = 0
+
+        self._typing_timer = QTimer(self)
+        self._typing_timer.setSingleShot(True)
 
         self._setup_ui()
         self._setup_connections()
@@ -85,10 +99,12 @@ class AddWordDialog(QDialog):
         root.addWidget(header)
 
         # ── Scrollable Content ──
+        # Saydam zemin global QSS'teki QScrollArea kuralından gelir. Burada
+        # widget'a stylesheet vermek tüm alt ağaca sızıyor ve içerideki
+        # butonları/açılır menüleri de saydam yapıyordu (siyah üstüne siyah).
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet("background: transparent;")
 
         content = QWidget()
         content.setObjectName("dialogSurface")
@@ -127,6 +143,32 @@ class AddWordDialog(QDialog):
         self._generate_btn.setMinimumHeight(44)
         self._generate_btn.setEnabled(False)
         form.addWidget(self._generate_btn)
+
+        # Durum metni (üretim sonucu/hatası) — footer'daki dar alan yerine
+        # burada tam genişlikte ve satır kaydırmalı: uzun "bulunamadı" mesajı
+        # kırpılmadan, kelimenin hemen altında görünür.
+        self._status_label = QLabel("")
+        self._status_label.setObjectName("statusText")
+        self._status_label.setWordWrap(True)
+        form.addWidget(self._status_label)
+
+        # ── Öneriler ──
+        # Yazarken tamamlama, bulunamayınca düzeltme. İkisi de kendiliğinden
+        # belirir; ayrıca bir şeye tıklamak gerekmez.
+        self._suggestions_widget = QWidget()
+        self._suggestions_widget.setVisible(False)
+        sugg_layout = QVBoxLayout(self._suggestions_widget)
+        sugg_layout.setContentsMargins(0, 0, 0, 0)
+        sugg_layout.setSpacing(8)
+        # Başlık bağlama göre değişir: yazarken tamamlama, hatadan sonra düzeltme.
+        self._suggestions_title = SectionLabel("ÖNERİLER")
+        sugg_layout.addWidget(self._suggestions_title)
+
+        self._suggestions_row = QHBoxLayout()
+        self._suggestions_row.setSpacing(8)
+        self._suggestions_row.addStretch()
+        sugg_layout.addLayout(self._suggestions_row)
+        form.addWidget(self._suggestions_widget)
 
         # ── AI Result Fields ──
         self._result_widget = QWidget()
@@ -198,10 +240,7 @@ class AddWordDialog(QDialog):
         f_layout = QHBoxLayout(footer)
         f_layout.setContentsMargins(24, 0, 24, 0)
         f_layout.setSpacing(12)
-
-        self._status_label = QLabel("")
-        self._status_label.setObjectName("statusText")
-        f_layout.addWidget(self._status_label, 1)
+        f_layout.addStretch()
 
         cancel_btn = QPushButton("İptal")
         cancel_btn.setObjectName("secondaryBtn")
@@ -226,10 +265,17 @@ class AddWordDialog(QDialog):
         self._term_input.textChanged.connect(self._on_term_changed)
         self._generate_btn.clicked.connect(self._generate_ai_content)
         self._save_btn.clicked.connect(self._save_word)
+        self._typing_timer.timeout.connect(self._fetch_completions)
 
     def _on_term_changed(self, text: str) -> None:
         has_text = bool(text.strip())
         self._generate_btn.setEnabled(has_text)
+
+        # Her tuş vuruşunda ağa çıkmak hem yavaş hem gereksiz: yazma durunca
+        # tek istek atılır.
+        self._typing_timer.start(TYPING_DEBOUNCE_MS)
+        if not has_text:
+            self._clear_suggestions()
 
     def _generate_ai_content(self) -> None:
         term = self._term_input.text().strip()
@@ -246,6 +292,7 @@ class AddWordDialog(QDialog):
             f"'{term}' için içerik üretiliyor ({self._service.content_source})..."
         )
         self._generate_btn.setEnabled(False)
+        self._clear_suggestions()  # önceki denemenin önerileri kalmasın
 
         self._ai_worker = TaskWorker(
             lambda: self._service.generate_content(term, lang_code), parent=self
@@ -265,10 +312,13 @@ class AddWordDialog(QDialog):
         self._loading.hide_loading()
         self._ai_data = data
         self._populate_fields(data)
+        was_hidden = not self._result_widget.isVisible()
         self._result_widget.setVisible(True)
         self._save_btn.setEnabled(True)
         self._generate_btn.setEnabled(True)
         self._set_status("✓ İçerik üretildi", "success")
+        if was_hidden:
+            fade_in(self._result_widget)
 
     def _set_status(self, message: str, level: str = "info") -> None:
         """
@@ -286,6 +336,87 @@ class AddWordDialog(QDialog):
         # Hata olsa bile kaydetmeye izin ver (boş veriyle)
         self._result_widget.setVisible(True)
         self._save_btn.setEnabled(True)
+        self._fetch_suggestions()
+
+    # ── Öneriler: yazarken tamamlama, hatadan sonra düzeltme ──────────────
+
+    def _fetch_completions(self) -> None:
+        """Yazma durunca kelimeyi tamamlar (debounce zamanlayıcısı tetikler)."""
+        prefix = self._term_input.text().strip()
+        self._start_suggest_worker(
+            lambda lang: self._service.complete_terms(prefix, lang),
+            title="ÖNERİLER",
+        )
+
+    def _fetch_suggestions(self) -> None:
+        """
+        Başarısız üretimden sonra alternatifleri arar.
+
+        Her hatada denenir: yazım hatası en olası sebep. Ağ ya da anahtar
+        kaynaklı hatalarda arama da sonuç veremez, satır gizli kalır.
+        """
+        term = self._term_input.text().strip()
+        if not term:
+            return
+        self._typing_timer.stop()  # tamamlama düzeltmenin üstüne yazmasın
+        self._start_suggest_worker(
+            lambda lang: self._service.suggest_terms(term, lang),
+            title="ŞUNU MU DEMEK İSTEDİNİZ?",
+        )
+
+    def _start_suggest_worker(self, fetch, title: str) -> None:
+        """
+        Öneri aramasını arka planda başlatır.
+
+        İstekler numaralanır: yavaş bir yanıt, kullanıcı yazmaya devam edip yeni
+        bir istek tetiklediyse ekrana yazılmaz. Numara olmasa geciken "rec"
+        yanıtı, ekrandaki "recieve" önerilerinin üstüne binerdi.
+        """
+        self._suggest_request_id += 1
+        request_id = self._suggest_request_id
+        lang_code = self._lang_combo.currentData()
+
+        worker = TaskWorker(lambda: fetch(lang_code), parent=self)
+        worker.succeeded.connect(lambda words: self._show_suggestions(words, request_id, title))
+        # Öneri bir kolaylık: bulunamazsa kullanıcıyı ikinci bir hatayla yorma.
+        worker.failed.connect(lambda msg: logger.info("Öneri alınamadı: %s", msg))
+        worker.finished.connect(worker.deleteLater)
+        self._suggest_worker = worker
+        worker.start()
+
+    def _show_suggestions(self, words: list[str], request_id: int, title: str) -> None:
+        if request_id != self._suggest_request_id:
+            return  # eskimiş yanıt
+
+        self._clear_suggestions()
+        if not words:
+            return
+
+        self._suggestions_title.setText(title)
+        for word in words:
+            chip = ClickableChip(word)
+            chip.setToolTip(f"'{word}' için içerik üret")
+            chip.clicked.connect(self._use_suggestion)
+            self._suggestion_chips.append(chip)
+            # addStretch en sonda; chip'ler onun önüne girmeli.
+            self._suggestions_row.insertWidget(self._suggestions_row.count() - 1, chip)
+
+        self._suggestions_widget.setVisible(True)
+        # Chip'ler küçük: yazarken sık belirdikleri için hızlı olmalılar.
+        fade_in(self._suggestions_widget, DURATION_FAST)
+
+    def _clear_suggestions(self) -> None:
+        for chip in self._suggestion_chips:
+            self._suggestions_row.removeWidget(chip)
+            chip.deleteLater()
+        self._suggestion_chips.clear()
+        self._suggestions_widget.setVisible(False)
+
+    def _use_suggestion(self, word: str) -> None:
+        """Öneriye tıklayınca kelimeyi değiştirip yeniden üretir."""
+        self._term_input.setText(word)
+        self._clear_suggestions()
+        self._generate_ai_content()
 
     def _populate_fields(self, data: dict) -> None:
         self._short_def.setText(data.get("definition_short", ""))

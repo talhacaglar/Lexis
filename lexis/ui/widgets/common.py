@@ -8,6 +8,8 @@ yeniden kurulmadan yeniden boyanabilirler.
 
 from __future__ import annotations
 
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import QFrame, QLabel, QWidget
 
 
@@ -51,6 +53,33 @@ class Chip(QLabel):
         super().__init__(text, parent)
         self.setObjectName("chip")
         self.setProperty("variant", variant)
+
+
+class ClickableChip(Chip):
+    """
+    Tıklanabilir chip. Stili Chip'ten, yani global QSS'ten gelir.
+
+    Metnini taşıyan bir `clicked` sinyali yayar; "şunu mu demek istediniz?"
+    önerilerinde kullanılır.
+    """
+
+    clicked = pyqtSignal(str)
+
+    def __init__(
+        self,
+        text: str,
+        variant: str = "accent",
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(text, variant, parent)
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.text())
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
 
 class StatusBadge(QLabel):

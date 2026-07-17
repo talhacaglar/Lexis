@@ -76,6 +76,42 @@ def test_generate_without_key_raises():
         AIService(api_key=None).generate_word_data("word", "en")
 
 
+def test_configure_with_empty_key_disables_gemini(monkeypatch):
+    """
+    Boş anahtar Gemini'yi kapatmalı.
+
+    Aksi hâlde bir kez girilen anahtardan vazgeçilemiyordu: ayarlardaki alan
+    temizlense bile istemci ayakta kalıp açık sözlük yerine Gemini'ye gidiliyordu.
+    """
+
+    class FakeClient:
+        def __init__(self, api_key, http_options=None):
+            pass
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+    service = AIService(api_key="k")
+    assert service.is_configured is True
+
+    service.configure("")
+
+    assert service.is_configured is False
+
+
+def test_configure_with_whitespace_key_disables_gemini(monkeypatch):
+    """Yalnızca boşluktan oluşan anahtar da geçersiz sayılmalı."""
+
+    class FakeClient:
+        def __init__(self, api_key, http_options=None):
+            pass
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+    service = AIService(api_key="k")
+
+    service.configure("   ")
+
+    assert service.is_configured is False
+
+
 def test_configure_sets_timeout(monkeypatch):
     """Zaman aşımı olmadan asılı bir istek worker thread'ini süresiz bloklar."""
     captured = {}

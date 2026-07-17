@@ -17,12 +17,14 @@ ikisini de aynı şekilde çağırabilir.
 
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
+from itertools import zip_longest
 
 from lexis.domain.exceptions import ContentProviderError
 
@@ -35,6 +37,9 @@ DICTIONARY_API = "https://api.dictionaryapi.dev/api/v2/entries/en/{term}"
 WIKTIONARY_API = "https://en.wiktionary.org/api/rest_v1/page/definition/{term}"
 TATOEBA_API = "https://tatoeba.org/en/api_v0/search"
 MYMEMORY_API = "https://api.mymemory.translated.net/get"
+DATAMUSE_API = "https://api.datamuse.com/words"
+DATAMUSE_SUGGEST_API = "https://api.datamuse.com/sug"
+WIKTIONARY_SEARCH_API = "https://en.wiktionary.org/w/api.php"
 
 # dictionaryapi.dev pratikte yalnızca İngilizce sunuyor (diğer dil uçları 404).
 RICH_LANGUAGE = "en"
@@ -42,6 +47,17 @@ RICH_LANGUAGE = "en"
 MAX_SYNONYMS = 5
 MAX_ANTONYMS = 4
 MAX_EXAMPLES = 3
+
+# "Şunu mu demek istediniz?" önerileri
+MAX_SUGGESTIONS = 5
+SUGGESTION_POOL = 15
+# Yazarken tamamlama için en az bu kadar harf gerekir; daha kısası her kelimeyi
+# eşleştirip gürültü üretir.
+MIN_COMPLETION_CHARS = 3
+# Benzerlik eşiği: altındakiler yazım hatası değil, alakasız kelimelerdir.
+# Ölçüldü: 0.6 "seperate→separate" (0.88) ve "Hause→house" (0.80) gibi gerçek
+# düzeltmeleri geçirirken alakasızları eler.
+MIN_SIMILARITY = 0.6
 
 # MyMemory'nin anonim kotasını tüketmemek için yalnızca kısa metin çevrilir.
 MAX_TRANSLATE_CHARS = 480
@@ -86,6 +102,9 @@ def _get_json(url: str, params: dict | None = None) -> object:
         return None
 
 
+MIN_TRANSLATION_MATCH = 0.5
+
+
 def _translate_to_turkish(text: str) -> str:
     """
     İngilizce tanımı Türkçeye çevirir.
@@ -93,7 +112,10 @@ def _translate_to_turkish(text: str) -> str:
     Kaynak daima İngilizce'dir: hem dictionaryapi.dev hem de en.wiktionary,
     kelimenin dili ne olursa olsun tanımları İngilizce verir.
 
-    Başarısızlıkta boş string döner; çeviri alınamasa da kelime eklenebilmeli.
+    Başarısızlıkta veya düşük güvenilirlikli eşleşmede boş string döner;
+    çağıran taraf bu durumda İngilizce orijinal metne düşer. MyMemory'nin
+    çeviri belleği bazen tamamen alakasız eşleşmeler döndürür (match skoru
+    düşük) — bunları göstermek yanlış öğretmekten beter.
     """
     text = text.strip()
     if not text or len(text) > MAX_TRANSLATE_CHARS:
@@ -104,7 +126,14 @@ def _translate_to_turkish(text: str) -> str:
         return ""
     if data.get("responseStatus") != 200:
         return ""
-    translated = (data.get("responseData") or {}).get("translatedText") or ""
+    response_data = data.get("responseData") or {}
+    try:
+        match = float(response_data.get("match", 0))
+    except (TypeError, ValueError):
+        match = 0.0
+    if match < MIN_TRANSLATION_MATCH:
+        return ""
+    translated = response_data.get("translatedText") or ""
     return translated.strip()
 
 
@@ -214,6 +243,130 @@ def _fetch_examples(term: str, language: str) -> list[str]:
     return examples
 
 
+def _datamuse_words(param: str, term: str) -> list[str]:
+    data = _get_json(DATAMUSE_API, {param: term, "max": SUGGESTION_POOL})
+    if not isinstance(data, list):
+        return []
+    return [d["word"] for d in data if isinstance(d, dict) and d.get("word")]
+
+
+def _interleave(primary: list[str], secondary: list[str]) -> list[str]:
+    """
+    İki listeyi sıralarını koruyarak dönüşümlü birleştirir.
+
+    Her iki kaynağın kendi alaka sıralaması korunur; birinin başındaki güçlü
+    aday, diğerinin kuyruğundaki zayıf adayın arkasında kalmaz.
+    """
+    merged: list[str] = []
+    for a, b in zip_longest(primary, secondary):
+        if a is not None:
+            merged.append(a)
+        if b is not None:
+            merged.append(b)
+    return merged
+
+
+def _suggest_english(term: str) -> list[str]:
+    """
+    Datamuse'tan okunuşu ve yazımı benzer kelimeleri çeker.
+
+    İki uç birlikte kullanılır çünkü tek başına ikisi de yetersiz (ölçüldü):
+      • sp (yazım) harf yer değiştirmesini kaçırır: "recieve" → receive YOK
+      • sl (okunuş) onu yakalar: "recieve" → receive, "freind" → friend
+
+    Okunuş önce geliyor: yazım hatalarının çoğu sesi koruyor, dolayısıyla sl'in
+    ilk sonuçları sp'ninkilerden isabetli (ölçüldü: "freind" için sp yalnızca
+    "frind"/"feind" gibi uydurma komşular veriyor, friend'i sl buluyor).
+
+    Yalnızca İngilizce, ama yazım düzeltmede Wiktionary'nin önek aramasından
+    belirgin biçimde iyi: "seperate" → separate; Wiktionary "seperated" veriyor.
+    """
+    return _interleave(_datamuse_words("sl", term), _datamuse_words("sp", term))
+
+
+def _suggest_wiktionary(term: str) -> list[str]:
+    """
+    Wiktionary'nin opensearch ucundan başlık önerileri çeker.
+
+    İngilizce dışındaki diller için tek anahtarsız seçenek. Yanıt biçimi:
+    [sorgu, [başlıklar], [açıklamalar], [bağlantılar]]
+    """
+    data = _get_json(
+        WIKTIONARY_SEARCH_API,
+        {"action": "opensearch", "search": term, "limit": SUGGESTION_POOL, "format": "json"},
+    )
+    if not isinstance(data, list) or len(data) < 2 or not isinstance(data[1], list):
+        return []
+    return [t for t in data[1] if isinstance(t, str)]
+
+
+def _complete_english(prefix: str) -> list[str]:
+    """
+    Datamuse'un /sug ucundan tamamlama önerileri çeker.
+
+    Yazarken kullanılan uç budur; sp/sl yarım kelimede işe yaramıyor (ölçüldü:
+    "ephem" için sp "epher", "phem", "echem" gibi çöp veriyor, /sug ise ilk
+    sırada "ephemeral" veriyor).
+    """
+    data = _get_json(DATAMUSE_SUGGEST_API, {"s": prefix, "max": SUGGESTION_POOL})
+    if not isinstance(data, list):
+        return []
+    return [d["word"] for d in data if isinstance(d, dict) and d.get("word")]
+
+
+def _dedupe_excluding_query(term: str, candidates: list[str]) -> list[str]:
+    """
+    Sorgunun kendisini ve yinelenenleri atar; kaynağın sıralamasını korur.
+
+    Tamamlamada benzerlik eşiği uygulanmaz: tamamlanan kelime doğal olarak
+    yazılandan uzun ve eşik onları yanlışlıkla eliyor (ölçüldü: "ephem" →
+    "ephemerality" oranı 0.59, yani geçerli bir tamamlama elenirdi).
+    """
+    key = term.strip().casefold()
+    out: list[str] = []
+    seen: set[str] = set()
+
+    for candidate in candidates:
+        c_key = candidate.strip().casefold()
+        if not c_key or c_key == key or c_key in seen:
+            continue
+        seen.add(c_key)
+        out.append(candidate.strip())
+        if len(out) >= MAX_SUGGESTIONS:
+            break
+
+    return out
+
+
+def _filter_suggestions(term: str, candidates: list[str]) -> list[str]:
+    """
+    Alakasız adayları eler; kaynağın alaka sıralamasını korur.
+
+    Benzerlik burada bilinçli olarak *filtre*, sıralama ölçütü değil. Benzerliğe
+    göre yeniden sıralamayı denedim ve ölçtüm: daha kötü sonuç veriyor, çünkü
+    "freind" için uydurma ama harfçe yakın "frind"/"feind" gerçek düzeltme olan
+    "friend"i ilk beşin dışına itiyordu. Kaynakların kendi sıralaması daha iyi.
+
+    Kelimenin kendisi öneri değildir: Datamuse sözlüğünde yanlış yazımlar da
+    bulunduğu için sorgunun kendisi sonuçlarda dönebiliyor.
+    """
+    key = term.strip().casefold()
+    out: list[str] = []
+    seen: set[str] = set()
+
+    for candidate in candidates:
+        c_key = candidate.strip().casefold()
+        if not c_key or c_key == key or c_key in seen:
+            continue
+        seen.add(c_key)
+        if difflib.SequenceMatcher(None, key, c_key).ratio() >= MIN_SIMILARITY:
+            out.append(candidate.strip())
+        if len(out) >= MAX_SUGGESTIONS:
+            break
+
+    return out
+
+
 def _unique(items: list[str]) -> list[str]:
     """Sırayı koruyarak yinelenenleri atar."""
     seen: set[str] = set()
@@ -257,6 +410,47 @@ class OpenDictionaryService:
         """Yapılandırma gerektirmez: her zaman kullanılabilir."""
         return True
 
+    def suggest_terms(self, term: str, language: str = "en") -> list[str]:
+        """
+        Yazımı benzer kelimeleri önerir ("şunu mu demek istediniz?").
+
+        Kelime bulunamadığında kullanılır: girilen metin tam ama yanlış yazılmış
+        varsayılır. Yazarken tamamlama için complete_terms kullanın.
+
+        Ağ hatasında boş liste döner: öneri bir kolaylık, kelime ekleme akışını
+        bloklamamalı.
+        """
+        term = term.strip()
+        if not term:
+            return []
+
+        candidates = _suggest_english(term) if language == RICH_LANGUAGE else []
+        if not candidates:
+            candidates = _suggest_wiktionary(term)
+
+        suggestions = _filter_suggestions(term, candidates)
+        logger.info("'%s' için %d düzeltme önerisi", term, len(suggestions))
+        return suggestions
+
+    def complete_terms(self, prefix: str, language: str = "en") -> list[str]:
+        """
+        Yazılmakta olan kelimeyi tamamlar.
+
+        suggest_terms'ten ayrı bir uç kullanır çünkü işler farklı: burada metin
+        yarım, orada tam ama hatalı. Ölçüldü — tek uçla ikisi birden olmuyor:
+          • /sug  yarımı tamamlar ("recei" → receive) ama hatayı düzeltmez
+            ("recieve" → receive YOK)
+          • sp/sl hatayı düzeltir ama yarımda çöp verir ("ephem" → epher, phem)
+        """
+        prefix = prefix.strip()
+        if len(prefix) < MIN_COMPLETION_CHARS:
+            return []
+
+        candidates = (
+            _complete_english(prefix) if language == RICH_LANGUAGE else _suggest_wiktionary(prefix)
+        )
+        return _dedupe_excluding_query(prefix, candidates)
+
     def generate_word_data(self, term: str, language: str = "en") -> dict:
         """
         Açık kaynaklardan kelime içeriği toplar.
@@ -269,6 +463,10 @@ class OpenDictionaryService:
 
         if language == RICH_LANGUAGE:
             base = _fetch_english(term)
+            if not base.get("definitions"):
+                # dictionaryapi.dev argo/az bilinen kelimelerde (örn. "yeet",
+                # "rizz") sık sık 404 veriyor; Wiktionary bunları çoğunlukla içerir.
+                base = _fetch_wiktionary(term, RICH_LANGUAGE)
         else:
             base = _fetch_wiktionary(term, language)
 

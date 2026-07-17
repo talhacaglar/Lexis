@@ -82,7 +82,8 @@ def run() -> int:
 
     style_override = os.environ.get("QT_STYLE_OVERRIDE")
     available_styles = {style.lower() for style in QStyleFactory.keys()}
-    if style_override and style_override.lower() not in available_styles:
+    valid_override = bool(style_override) and style_override.lower() in available_styles
+    if style_override and not valid_override:
         logger.info("Geçersiz QT_STYLE_OVERRIDE değeri temizleniyor: %s", style_override)
         os.environ.pop("QT_STYLE_OVERRIDE", None)
 
@@ -90,6 +91,11 @@ def run() -> int:
     app.setApplicationName("Lexis")
     app.setOrganizationName("Lexis")
     app.setApplicationVersion("0.1.0")
+
+    if not valid_override:
+        # Native stiller (GTK, Windows vb.) QSS'i QComboBox popup'ı gibi
+        # alt pencerelerde görmezden gelir; Fusion tüm kuralları uygular.
+        app.setStyle(QStyleFactory.create("Fusion"))
 
     # Qt6'da yüksek DPI pixmap desteği varsayılan olabilir; eski enum yoksa atla.
     high_dpi_attr = getattr(Qt.ApplicationAttribute, "AA_UseHighDpiPixmaps", None)

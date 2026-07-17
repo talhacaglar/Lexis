@@ -346,14 +346,19 @@ class SettingsView(QWidget):
         repolish(label)
 
     def _save_api_key(self) -> None:
+        # Boş alanı kaydetmek anahtarı siler: Gemini isteğe bağlı olduğuna göre
+        # vazgeçmenin de bir yolu olmalı. (Önceden reddediliyordu, dolayısıyla
+        # bir kez girilen anahtar kalıcı hâle geliyordu.)
         key = self._api_key_input.text().strip()
-        if not key:
-            self._set_status(self._api_status, "API anahtarı boş olamaz.", "error")
-            return
         try:
             save_api_key(key)
             self._service.configure_ai(key)
-            self._set_status(self._api_status, "✓ API anahtarı kaydedildi", "success")
+            message = (
+                "✓ API anahtarı kaydedildi"
+                if key
+                else "✓ API anahtarı silindi — içerik açık sözlüklerden gelecek"
+            )
+            self._set_status(self._api_status, message, "success")
             self._refresh_source_label()
             self.settings_changed.emit()
         except Exception as e:
