@@ -25,8 +25,16 @@ DICTIONARY_RESPONSE = [
                 "synonyms": ["fleeting", "transient"],
                 "antonyms": ["permanent"],
                 "definitions": [
-                    {"definition": "Lasting for a very short time.", "synonyms": [], "antonyms": []},
-                    {"definition": "Existing for only one day.", "synonyms": ["daily"], "antonyms": []},
+                    {
+                        "definition": "Lasting for a very short time.",
+                        "synonyms": [],
+                        "antonyms": [],
+                    },
+                    {
+                        "definition": "Existing for only one day.",
+                        "synonyms": ["daily"],
+                        "antonyms": [],
+                    },
                 ],
             }
         ],
@@ -79,6 +87,7 @@ def service() -> OpenDictionaryService:
 
 
 # ── Temel davranış ────────────────────────────────────────────────────────
+
 
 def test_is_always_configured(service):
     """Anahtar gerektirmez: her zaman kullanılabilir olmalı."""
@@ -154,6 +163,7 @@ def test_unsupported_language_raises(service, fake_network):
 
 
 # ── Dayanıklılık: tek kaynak düşerse kelime yine eklenebilmeli ────────────
+
 
 def test_translation_failure_falls_back_to_source_text(service, fake_network):
     fake_network["dictionaryapi.dev"] = DICTIONARY_RESPONSE
@@ -231,6 +241,7 @@ def test_overlong_definition_is_not_sent_to_translator(service, fake_network):
 
 # ── Yardımcılar ───────────────────────────────────────────────────────────
 
+
 def test_unique_preserves_order_and_drops_case_duplicates():
     assert od._unique(["Fleeting", "fleeting", "transient", " "]) == ["Fleeting", "transient"]
 
@@ -241,6 +252,7 @@ def test_strip_html_collapses_whitespace():
 
 def test_get_json_returns_none_on_network_error(monkeypatch):
     """Ağ hatası istisna fırlatmamalı; çağıran None görüp devam edebilmeli."""
+
     def boom(*a, **k):
         raise OSError("ağ yok")
 

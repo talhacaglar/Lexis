@@ -73,9 +73,7 @@ class ExportService:
                     skipped += 1
                     continue
                 key = (word.term.strip().casefold(), word.language)
-                if skip_duplicates and (
-                    key in seen or self._repo.exists(word.term, word.language)
-                ):
+                if skip_duplicates and (key in seen or self._repo.exists(word.term, word.language)):
                     skipped += 1
                     continue
                 seen.add(key)
@@ -137,10 +135,19 @@ class ExportService:
     # ── CSV ───────────────────────────────────────────────────────────────
 
     CSV_FIELDS = [
-        "term", "language", "definition_short", "definition",
-        "part_of_speech", "synonyms", "antonyms",
-        "example_sentences", "usage_notes", "status",
-        "is_favorite", "tags", "created_at",
+        "term",
+        "language",
+        "definition_short",
+        "definition",
+        "part_of_speech",
+        "synonyms",
+        "antonyms",
+        "example_sentences",
+        "usage_notes",
+        "status",
+        "is_favorite",
+        "tags",
+        "created_at",
     ]
 
     def export_csv(self, path: Path) -> int:
@@ -152,21 +159,23 @@ class ExportService:
                 writer.writeheader()
                 for w in words:
                     d = w.to_dict()
-                    writer.writerow({
-                        "term": d["term"],
-                        "language": d["language"],
-                        "definition_short": d["definition_short"],
-                        "definition": d["definition"],
-                        "part_of_speech": d["part_of_speech"],
-                        "synonyms": ", ".join(d["synonyms"]),
-                        "antonyms": ", ".join(d["antonyms"]),
-                        "example_sentences": " | ".join(d["example_sentences"]),
-                        "usage_notes": d["usage_notes"],
-                        "status": d["status"],
-                        "is_favorite": "evet" if d["is_favorite"] else "hayır",
-                        "tags": ", ".join(d["tags"]),
-                        "created_at": d["created_at"][:10],
-                    })
+                    writer.writerow(
+                        {
+                            "term": d["term"],
+                            "language": d["language"],
+                            "definition_short": d["definition_short"],
+                            "definition": d["definition"],
+                            "part_of_speech": d["part_of_speech"],
+                            "synonyms": ", ".join(d["synonyms"]),
+                            "antonyms": ", ".join(d["antonyms"]),
+                            "example_sentences": " | ".join(d["example_sentences"]),
+                            "usage_notes": d["usage_notes"],
+                            "status": d["status"],
+                            "is_favorite": "evet" if d["is_favorite"] else "hayır",
+                            "tags": ", ".join(d["tags"]),
+                            "created_at": d["created_at"][:10],
+                        }
+                    )
             logger.info(f"CSV dışa aktarıldı: {path} ({len(words)} kelime)")
             return len(words)
         except Exception as e:

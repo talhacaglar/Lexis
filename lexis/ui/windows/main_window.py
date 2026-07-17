@@ -37,10 +37,10 @@ logger = logging.getLogger(__name__)
 
 # Page indices
 PAGE_DASHBOARD = 0
-PAGE_LIBRARY   = 1
-PAGE_DETAIL    = 2
-PAGE_SETTINGS  = 3
-PAGE_PRACTICE  = 4
+PAGE_LIBRARY = 1
+PAGE_DETAIL = 2
+PAGE_SETTINGS = 3
+PAGE_PRACTICE = 4
 
 
 class NavButton(QPushButton):
@@ -112,8 +112,8 @@ class Sidebar(QWidget):
 
         # ── Nav items ──
         nav_items = [
-            ("home", "Ana Sayfa",    PAGE_DASHBOARD),
-            ("book", "Kütüphane",    PAGE_LIBRARY),
+            ("home", "Ana Sayfa", PAGE_DASHBOARD),
+            ("book", "Kütüphane", PAGE_LIBRARY),
         ]
         for icon, label, page in nav_items:
             btn = NavButton(icon, label)
@@ -209,11 +209,11 @@ class MainWindow(QWidget):
         self._settings = SettingsView(self._service, self._export_service)
         self._practice = PracticeView(self._service)
 
-        self._stack.addWidget(self._dashboard)   # 0
-        self._stack.addWidget(self._library)     # 1
-        self._stack.addWidget(self._detail)      # 2
-        self._stack.addWidget(self._settings)    # 3
-        self._stack.addWidget(self._practice)    # 4
+        self._stack.addWidget(self._dashboard)  # 0
+        self._stack.addWidget(self._library)  # 1
+        self._stack.addWidget(self._detail)  # 2
+        self._stack.addWidget(self._settings)  # 3
+        self._stack.addWidget(self._practice)  # 4
 
     def _setup_connections(self) -> None:
         # Sidebar navigation

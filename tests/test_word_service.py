@@ -136,11 +136,15 @@ class TestContentProviderSelection:
 class TestApplyContent:
     def test_missing_fields_keep_existing_values(self, word_service: WordService):
         """Açık sözlük bazı alanları boş bırakabilir; mevcut içeriği silmemeli."""
-        word = word_service.add_word("ephemeral", "en", ai_data={
-            "definition": "eski tanım",
-            "usage_notes": "eski not",
-            "synonyms": ["a", "b"],
-        })
+        word = word_service.add_word(
+            "ephemeral",
+            "en",
+            ai_data={
+                "definition": "eski tanım",
+                "usage_notes": "eski not",
+                "synonyms": ["a", "b"],
+            },
+        )
 
         word_service.apply_content(word, {"definition": "yeni tanım", "usage_notes": ""})
 

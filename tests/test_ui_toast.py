@@ -17,12 +17,11 @@ from lexis.ui.widgets.toast import ToastManager  # noqa: E402
 @pytest.fixture
 def confirm_yes(monkeypatch):
     """Silme onay diyaloğunu otomatik 'Evet'ler."""
-    monkeypatch.setattr(
-        QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes
-    )
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
 
 
 # ── ToastManager ──────────────────────────────────────────────────────────
+
 
 def _toast_text(toast) -> str:
     return toast.findChild(QLabel, "toastText").text()
@@ -46,9 +45,7 @@ def test_toast_stack_is_capped(window):
 
 def test_toast_action_runs_once(window):
     calls = []
-    toast = window.toasts.show(
-        "silindi", action_label="Geri al", on_action=lambda: calls.append(1)
-    )
+    toast = window.toasts.show("silindi", action_label="Geri al", on_action=lambda: calls.append(1))
 
     toast._trigger_action()
     toast._trigger_action()  # hızlı çift tıklama
@@ -66,6 +63,7 @@ def test_toast_action_failure_does_not_crash(window):
 
 # ── Geri alınabilir silme ─────────────────────────────────────────────────
 
+
 def test_delete_word_offers_undo(window, repo: WordRepository, sample_word: Word, confirm_yes):
     repo.create(sample_word)
 
@@ -76,7 +74,9 @@ def test_delete_word_offers_undo(window, repo: WordRepository, sample_word: Word
     assert "silindi" in _toast_text(window.toasts._toasts[0])
 
 
-def test_undo_restores_word_with_same_id(window, repo: WordRepository, sample_word: Word, confirm_yes):
+def test_undo_restores_word_with_same_id(
+    window, repo: WordRepository, sample_word: Word, confirm_yes
+):
     repo.create(sample_word)
     window._delete_word(sample_word.id)
     assert repo.get_all() == []
@@ -90,7 +90,9 @@ def test_undo_restores_word_with_same_id(window, repo: WordRepository, sample_wo
     assert restored[0].tags == ["vocabulary", "adjective"]
 
 
-def test_undo_preserves_srs_state(window, repo: WordRepository, word_service: WordService, confirm_yes):
+def test_undo_preserves_srs_state(
+    window, repo: WordRepository, word_service: WordService, confirm_yes
+):
     """Geri alınan kelime SM-2 ilerlemesini korumalı."""
     word = word_service.add_word("kalici", "en")
     word_service.review_word(word.id, ReviewGrade.GOOD)
@@ -107,9 +109,7 @@ def test_undo_preserves_srs_state(window, repo: WordRepository, word_service: Wo
 
 def test_delete_cancelled_keeps_word(window, repo: WordRepository, sample_word: Word, monkeypatch):
     repo.create(sample_word)
-    monkeypatch.setattr(
-        QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No
-    )
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
 
     window._delete_word(sample_word.id)
 
@@ -123,10 +123,15 @@ def test_delete_missing_word_shows_error(window, confirm_yes):
 
 # ── Sessiz hataların kaldırılması ─────────────────────────────────────────
 
-def test_failed_favorite_toggle_surfaces_error(window, repo: WordRepository, sample_word: Word, monkeypatch):
+
+def test_failed_favorite_toggle_surfaces_error(
+    window, repo: WordRepository, sample_word: Word, monkeypatch
+):
     repo.create(sample_word)
     monkeypatch.setattr(
-        window._service, "toggle_favorite", lambda _id: (_ for _ in ()).throw(RuntimeError("db yok"))
+        window._service,
+        "toggle_favorite",
+        lambda _id: (_ for _ in ()).throw(RuntimeError("db yok")),
     )
 
     window._toggle_favorite(sample_word.id)

@@ -138,8 +138,11 @@ class EditWordDialog(QDialog):
             ("TELAFFUZ", self._phonetic_input, "/əˈfɛmərəl/"),
             ("EŞ ANLAMLILAR", self._synonyms_input, "virgülle ayırın"),
             ("ZIT ANLAMLILAR", self._antonyms_input, "virgülle ayırın"),
-            ("ÖRNEK CÜMLELER", self._examples_input,
-             "Her örnek boş satırla ayrılır. Çeviriyi alt satıra yazın."),
+            (
+                "ÖRNEK CÜMLELER",
+                self._examples_input,
+                "Her örnek boş satırla ayrılır. Çeviriyi alt satıra yazın.",
+            ),
             ("KULLANIM NOTU", self._notes_input, ""),
             ("ETİKETLER", self._tags_input, "virgülle ayırın"),
         ]

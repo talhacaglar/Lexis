@@ -97,7 +97,9 @@ class ActivityChart(QWidget):
             label_font.setBold(day == today)
             painter.setFont(label_font)
             painter.drawText(
-                QRectF(x - BAR_GAP / 2, self.height() - LABEL_HEIGHT, bar_width + BAR_GAP, LABEL_HEIGHT),
+                QRectF(
+                    x - BAR_GAP / 2, self.height() - LABEL_HEIGHT, bar_width + BAR_GAP, LABEL_HEIGHT
+                ),
                 Qt.AlignmentFlag.AlignCenter,
                 DAY_INITIALS[day.weekday()],
             )

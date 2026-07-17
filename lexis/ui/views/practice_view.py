@@ -78,8 +78,13 @@ class PracticeView(QWidget):
         self._length_combo.setMinimumHeight(38)
         self._length_combo.setAccessibleName("Oturum uzunluğu")
         self._length_combo.setToolTip("Bu oturumda kaç kelime çalışılacak")
-        for label, value in (("10 kelime", 10), ("20 kelime", 20), ("30 kelime", 30),
-                             ("50 kelime", 50), ("Tümü", 0)):
+        for label, value in (
+            ("10 kelime", 10),
+            ("20 kelime", 20),
+            ("30 kelime", 30),
+            ("50 kelime", 50),
+            ("Tümü", 0),
+        ):
             self._length_combo.addItem(label, value)
         self._length_combo.setCurrentIndex(2)  # varsayılan 30
         self._length_combo.currentIndexChanged.connect(self._on_length_changed)

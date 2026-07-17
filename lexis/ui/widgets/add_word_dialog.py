@@ -33,8 +33,6 @@ from lexis.workers.task_worker import TaskWorker
 logger = logging.getLogger(__name__)
 
 
-
-
 class AddWordDialog(QDialog):
     """
     Kelime ekleme diyalogu.
@@ -304,7 +302,8 @@ class AddWordDialog(QDialog):
         antonyms = [a.strip() for a in self._antonyms_input.text().split(",") if a.strip()]
         examples_text = self._examples_input.toPlainText().strip()
         import re
-        examples = [e.strip() for e in re.split(r'\n\s*\n', examples_text) if e.strip()]
+
+        examples = [e.strip() for e in re.split(r"\n\s*\n", examples_text) if e.strip()]
 
         return {
             "definition": self._definition.toPlainText().strip(),

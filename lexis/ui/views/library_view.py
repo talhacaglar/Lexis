@@ -38,9 +38,9 @@ class LibraryView(QWidget):
     - Pencere genişliğine uyan ızgara ve sayfalama
     """
 
-    word_clicked = pyqtSignal(str)       # word_id
-    favorite_toggled = pyqtSignal(str)   # word_id
-    delete_requested = pyqtSignal(str)   # word_id — silmeyi MainWindow yürütür
+    word_clicked = pyqtSignal(str)  # word_id
+    favorite_toggled = pyqtSignal(str)  # word_id
+    delete_requested = pyqtSignal(str)  # word_id — silmeyi MainWindow yürütür
     open_add_dialog = pyqtSignal()
 
     def __init__(self, word_service: WordService, parent: QWidget | None = None) -> None:
@@ -219,9 +219,7 @@ class LibraryView(QWidget):
         sc_layout.setSpacing(0)
         sc_layout.addWidget(self._grid_container)
         sc_layout.addWidget(self._empty_widget)
-        sc_layout.addWidget(
-            self._load_more_btn, alignment=Qt.AlignmentFlag.AlignCenter
-        )
+        sc_layout.addWidget(self._load_more_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         sc_layout.addStretch()
 
         self._scroll.setWidget(scroll_content)
@@ -303,7 +301,7 @@ class LibraryView(QWidget):
 
         # Sayfa küçüldüyse fazlalık kartlar gizlenir (yok edilmez: yeniden
         # kullanılırlar; her tuş vuruşunda widget yaratmak pahalıydı).
-        for card in self._word_cards[self._word_cards_used:]:
+        for card in self._word_cards[self._word_cards_used :]:
             card.setVisible(False)
 
         self._count_label.setText(
@@ -341,8 +339,11 @@ class LibraryView(QWidget):
         """Kütüphane gerçekten boş mu, yoksa filtre mi eşleşmedi — ayırt eder."""
         self._empty_widget.setVisible(True)
         filtering = bool(
-            filters["search"] or filters["language"] or filters["tag"]
-            or filters["status"] or filters["favorites_only"]
+            filters["search"]
+            or filters["language"]
+            or filters["tag"]
+            or filters["status"]
+            or filters["favorites_only"]
         )
 
         if filtering:
@@ -352,9 +353,7 @@ class LibraryView(QWidget):
             self._empty_action_btn.setText("Filtreleri Temizle")
             self._reconnect(self._empty_action_btn, self._clear_filters)
         else:
-            self._empty_label.setText(
-                "Kütüphaneniz henüz boş.\nİlk kelimenizi ekleyerek başlayın."
-            )
+            self._empty_label.setText("Kütüphaneniz henüz boş.\nİlk kelimenizi ekleyerek başlayın.")
             self._empty_action_btn.setText("+ İlk Kelimeni Ekle")
             self._reconnect(self._empty_action_btn, self.open_add_dialog.emit)
 

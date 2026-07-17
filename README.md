@@ -124,11 +124,18 @@ QT_QPA_PLATFORM=offscreen pytest
 # Kapsam raporu
 QT_QPA_PLATFORM=offscreen pytest --cov=lexis
 
-# Lint
+# Lint + biçim
 ruff check lexis/ tests/
+ruff format --check lexis/ tests/
 ```
 
-Her push ve pull request'te GitHub Actions üzerinde Python 3.10–3.13 için lint ve testler (kapsam eşiğiyle birlikte) otomatik çalışır. `v*` etiketi atıldığında AppImage otomatik derlenip Release'e eklenir.
+Her push ve pull request'te GitHub Actions üzerinde Python 3.10–3.13 için lint, biçim kontrolü ve testler (kapsam eşiğiyle birlikte) otomatik çalışır. `v*` etiketi atıldığında AppImage otomatik derlenip Release'e eklenir.
+
+Aynı kontrolleri commit anında çalıştırmak için:
+
+```bash
+pip install pre-commit && pre-commit install
+```
 
 Testler ağa çıkmaz: açık sözlük ve Gemini çağrıları sahte yanıtlarla değiştirilir.
 

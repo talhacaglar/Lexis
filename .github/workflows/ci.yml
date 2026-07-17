@@ -42,10 +42,8 @@ jobs:
       - name: Lint (ruff)
         run: ruff check lexis/ tests/
 
-      # NOT: `ruff format --check` henüz eklenmedi. Eklemek için önce
-      # `ruff format lexis/ tests/` bir kez çalıştırılmalı (52 dosyanın 31'ini
-      # yeniden biçimlendirir); o biçimlendirme kendi commit'inde yapılmalı ki
-      # bu değişikliklerin diff'ine karışmasın.
+      - name: Biçim kontrolü (ruff format)
+        run: ruff format --check lexis/ tests/
 
       - name: Testler + kapsam
         run: pytest -q --cov=lexis --cov-report=term

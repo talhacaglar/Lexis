@@ -16,7 +16,9 @@ from lexis.ui.theme import Colors
 class SpinnerWidget(QWidget):
     """Dönen daire animasyonu."""
 
-    def __init__(self, parent: QWidget | None = None, size: int = 40, color: str | None = None) -> None:
+    def __init__(
+        self, parent: QWidget | None = None, size: int = 40, color: str | None = None
+    ) -> None:
         super().__init__(parent)
         self._size = size
         self._color = QColor(color or Colors.ACCENT)

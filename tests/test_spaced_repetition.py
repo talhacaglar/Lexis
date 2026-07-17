@@ -21,6 +21,7 @@ from lexis.services.word_service import WordService
 
 # ── SM-2 saf fonksiyon ────────────────────────────────────────────────────
 
+
 def test_sm2_first_good_review_sets_interval_1():
     ease, interval, reps, delay = compute_sm2(2.5, 0, 0, ReviewGrade.GOOD)
     assert interval == 1
@@ -73,6 +74,7 @@ def test_sm2_ease_never_below_1_3():
 
 
 # ── Word.apply_review ─────────────────────────────────────────────────────
+
 
 def test_apply_review_schedules_due_date():
     word = Word(term="ephemeral")
@@ -127,6 +129,7 @@ def test_hard_review_does_not_permanently_block_learned():
 
 
 # ── Service + repository akışı ────────────────────────────────────────────
+
 
 def test_review_word_flow(word_service: WordService):
     word = word_service.add_word("ubiquitous", "en")
@@ -284,7 +287,9 @@ def test_migration_v3_to_v4_adds_pronunciation_columns(tmp_path):
 
 
 def test_pronunciation_round_trips(repo: WordRepository):
-    repo.create(Word(term="ephemeral", language="en", phonetic="/əˈfɛmərəl/", audio_url="https://x/a.mp3"))
+    repo.create(
+        Word(term="ephemeral", language="en", phonetic="/əˈfɛmərəl/", audio_url="https://x/a.mp3")
+    )
     saved = repo.get_all()[0]
     assert saved.phonetic == "/əˈfɛmərəl/"
     assert saved.audio_url == "https://x/a.mp3"
@@ -303,6 +308,7 @@ def test_migrations_are_idempotent_on_reopen(tmp_path):
 
 
 # ── Tekrar geçmişi (review_log) ───────────────────────────────────────────
+
 
 def test_review_word_writes_history(word_service: WordService):
     word = word_service.add_word("history", "en")
@@ -374,7 +380,9 @@ def test_streak_breaks_on_gap(word_service: WordService, repo: WordRepository, t
     assert repo.get_streak() == 1
 
 
-def test_streak_survives_today_without_review(word_service: WordService, repo: WordRepository, tmp_db):
+def test_streak_survives_today_without_review(
+    word_service: WordService, repo: WordRepository, tmp_db
+):
     """Bugün henüz çalışılmadıysa dünkü seri hâlâ ayakta sayılır."""
     word = word_service.add_word("dun", "en")
     now = utcnow()

@@ -58,12 +58,14 @@ def _is_retryable(exc: Exception) -> bool:
 
 class ExampleSentence(BaseModel):
     """Yabancı dildeki örnek cümle ve Türkçe çevirisi."""
+
     foreign: str
     turkish: str
 
 
 class WordData(BaseModel):
     """Gemini'nin bir kelime için üreteceği yapısal içerik."""
+
     definition: str
     definition_short: str
     part_of_speech: str
@@ -138,8 +140,7 @@ def _check_blocked(response) -> None:
     block_reason = getattr(feedback, "block_reason", None) if feedback else None
     if block_reason:
         raise AIServiceError(
-            f"İstek güvenlik filtresine takıldı ({block_reason}). "
-            "Farklı bir kelime deneyin."
+            f"İstek güvenlik filtresine takıldı ({block_reason}). Farklı bir kelime deneyin."
         )
 
     candidates = getattr(response, "candidates", None) or []
@@ -263,7 +264,10 @@ class AIService:
                 delay = BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)) + random.uniform(0, 0.3)
                 logger.warning(
                     "Gemini isteği geçici hata verdi (deneme %d/%d), %.1f sn sonra tekrar: %s",
-                    attempt, MAX_ATTEMPTS, delay, e,
+                    attempt,
+                    MAX_ATTEMPTS,
+                    delay,
+                    e,
                 )
                 time.sleep(delay)
 

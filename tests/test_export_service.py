@@ -14,7 +14,10 @@ from lexis.services.export_service import ExportService
 
 # ── JSON export ───────────────────────────────────────────────────────────
 
-def test_export_json_writes_all_words(export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word):
+
+def test_export_json_writes_all_words(
+    export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word
+):
     repo.create(sample_word)
     target = tmp_path / "out.json"
 
@@ -28,7 +31,9 @@ def test_export_json_writes_all_words(export_service: ExportService, repo: WordR
     assert data["words"][0]["synonyms"] == ["transient", "fleeting", "momentary"]
 
 
-def test_export_json_leaves_no_temp_files(export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word):
+def test_export_json_leaves_no_temp_files(
+    export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word
+):
     repo.create(sample_word)
     target = tmp_path / "out.json"
 
@@ -38,7 +43,9 @@ def test_export_json_leaves_no_temp_files(export_service: ExportService, repo: W
     assert list(tmp_path.glob("*.tmp")) == []
 
 
-def test_export_json_keeps_existing_file_intact_on_failure(export_service: ExportService, tmp_path, monkeypatch):
+def test_export_json_keeps_existing_file_intact_on_failure(
+    export_service: ExportService, tmp_path, monkeypatch
+):
     """Yazma hata verirse kullanıcının mevcut dosyası bozulmamalı."""
     target = tmp_path / "out.json"
     target.write_text("ÖNCEKİ İÇERİK", encoding="utf-8")
@@ -57,7 +64,10 @@ def test_export_json_keeps_existing_file_intact_on_failure(export_service: Expor
 
 # ── JSON import ───────────────────────────────────────────────────────────
 
-def test_import_json_round_trip(export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word):
+
+def test_import_json_round_trip(
+    export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word
+):
     repo.create(sample_word)
     target = tmp_path / "out.json"
     export_service.export_json(target)
@@ -72,7 +82,9 @@ def test_import_json_round_trip(export_service: ExportService, repo: WordReposit
     assert restored.example_sentences == sample_word.example_sentences
 
 
-def test_import_json_accepts_bare_list(export_service: ExportService, repo: WordRepository, tmp_path):
+def test_import_json_accepts_bare_list(
+    export_service: ExportService, repo: WordRepository, tmp_path
+):
     target = tmp_path / "bare.json"
     target.write_text(json.dumps([{"term": "solitude", "language": "en"}]), encoding="utf-8")
 
@@ -82,7 +94,9 @@ def test_import_json_accepts_bare_list(export_service: ExportService, repo: Word
     assert repo.get_all()[0].term == "solitude"
 
 
-def test_import_json_skips_duplicates_already_in_db(export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word):
+def test_import_json_skips_duplicates_already_in_db(
+    export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word
+):
     repo.create(sample_word)
     target = tmp_path / "dup.json"
     target.write_text(json.dumps([{"term": "ephemeral", "language": "en"}]), encoding="utf-8")
@@ -93,14 +107,18 @@ def test_import_json_skips_duplicates_already_in_db(export_service: ExportServic
     assert len(repo.get_all()) == 1
 
 
-def test_import_json_skips_duplicates_within_same_file(export_service: ExportService, repo: WordRepository, tmp_path):
+def test_import_json_skips_duplicates_within_same_file(
+    export_service: ExportService, repo: WordRepository, tmp_path
+):
     """Aynı dosyada tekrarlanan kelime bir kez alınmalı (toplu yazımda DB henüz görmez)."""
     target = tmp_path / "dup.json"
     target.write_text(
-        json.dumps([
-            {"term": "candid", "language": "en"},
-            {"term": "Candid", "language": "en"},  # yalnızca harf büyüklüğü farklı
-        ]),
+        json.dumps(
+            [
+                {"term": "candid", "language": "en"},
+                {"term": "Candid", "language": "en"},  # yalnızca harf büyüklüğü farklı
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -110,14 +128,18 @@ def test_import_json_skips_duplicates_within_same_file(export_service: ExportSer
     assert len(repo.get_all()) == 1
 
 
-def test_import_json_skips_malformed_rows_but_keeps_valid_ones(export_service: ExportService, repo: WordRepository, tmp_path):
+def test_import_json_skips_malformed_rows_but_keeps_valid_ones(
+    export_service: ExportService, repo: WordRepository, tmp_path
+):
     target = tmp_path / "mixed.json"
     target.write_text(
-        json.dumps([
-            {"term": "valid", "language": "en"},
-            {"language": "en"},  # term yok → bozuk
-            {"term": "also_valid", "language": "en"},
-        ]),
+        json.dumps(
+            [
+                {"term": "valid", "language": "en"},
+                {"language": "en"},  # term yok → bozuk
+                {"term": "also_valid", "language": "en"},
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -143,7 +165,9 @@ def test_import_json_rejects_unparsable_file(export_service: ExportService, tmp_
         export_service.import_json(target)
 
 
-def test_import_json_is_atomic_when_write_fails(export_service: ExportService, repo: WordRepository, tmp_path, monkeypatch):
+def test_import_json_is_atomic_when_write_fails(
+    export_service: ExportService, repo: WordRepository, tmp_path, monkeypatch
+):
     """Toplu yazım ortasında hata olursa hiçbir kelime kalmamalı."""
     target = tmp_path / "many.json"
     target.write_text(
@@ -164,7 +188,10 @@ def test_import_json_is_atomic_when_write_fails(export_service: ExportService, r
 
 # ── CSV ───────────────────────────────────────────────────────────────────
 
-def test_export_csv_flattens_list_fields(export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word):
+
+def test_export_csv_flattens_list_fields(
+    export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word
+):
     repo.create(sample_word)
     target = tmp_path / "out.csv"
 
@@ -180,7 +207,9 @@ def test_export_csv_flattens_list_fields(export_service: ExportService, repo: Wo
     assert len(row["created_at"]) == 10  # yalnızca tarih
 
 
-def test_csv_round_trip(export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word):
+def test_csv_round_trip(
+    export_service: ExportService, repo: WordRepository, tmp_path, sample_word: Word
+):
     repo.create(sample_word)
     target = tmp_path / "out.csv"
     export_service.export_csv(target)
@@ -197,7 +226,9 @@ def test_csv_round_trip(export_service: ExportService, repo: WordRepository, tmp
     assert restored.ai_generated is False  # elle içe aktarım AI üretimi sayılmaz
 
 
-def test_import_csv_skips_rows_without_term(export_service: ExportService, repo: WordRepository, tmp_path):
+def test_import_csv_skips_rows_without_term(
+    export_service: ExportService, repo: WordRepository, tmp_path
+):
     target = tmp_path / "in.csv"
     target.write_text(
         "term,language\nvalid,en\n,en\n  ,en\n",
@@ -210,7 +241,9 @@ def test_import_csv_skips_rows_without_term(export_service: ExportService, repo:
     assert repo.get_all()[0].term == "valid"
 
 
-def test_import_csv_defaults_language_to_en(export_service: ExportService, repo: WordRepository, tmp_path):
+def test_import_csv_defaults_language_to_en(
+    export_service: ExportService, repo: WordRepository, tmp_path
+):
     target = tmp_path / "in.csv"
     target.write_text("term\nserendipity\n", encoding="utf-8-sig")
 

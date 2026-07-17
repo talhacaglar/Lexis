@@ -383,9 +383,7 @@ class SettingsView(QWidget):
                 self._workers.remove(worker)
 
         worker.succeeded.connect(on_success)
-        worker.failed.connect(
-            lambda msg: self._set_status(status_label, f"Hata: {msg}", "error")
-        )
+        worker.failed.connect(lambda msg: self._set_status(status_label, f"Hata: {msg}", "error"))
         worker.finished.connect(cleanup)
         worker.start()
 

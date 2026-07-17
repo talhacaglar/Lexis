@@ -50,10 +50,10 @@ def grid_columns(available_width: int) -> int:
 class WordCard(QFrame):
     """Tek bir kelimeyi temsil eden tıklanabilir kart."""
 
-    clicked = pyqtSignal(str)           # word_id
+    clicked = pyqtSignal(str)  # word_id
     favorite_toggled = pyqtSignal(str)  # word_id
     delete_requested = pyqtSignal(str)  # word_id
-    tag_clicked = pyqtSignal(str)       # tag adı
+    tag_clicked = pyqtSignal(str)  # tag adı
 
     def __init__(self, word: Word, parent: QWidget | None = None) -> None:
         super().__init__(parent)

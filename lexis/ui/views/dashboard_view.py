@@ -87,7 +87,7 @@ class DashboardView(QWidget):
     """
 
     open_add_dialog = pyqtSignal()
-    word_clicked = pyqtSignal(str)      # word_id
+    word_clicked = pyqtSignal(str)  # word_id
     favorite_toggled = pyqtSignal(str)  # word_id
     delete_requested = pyqtSignal(str)  # word_id — silmeyi MainWindow yürütür
     start_practice = pyqtSignal()
@@ -191,7 +191,9 @@ class DashboardView(QWidget):
         self._grid_layout.setSpacing(14)
         layout.addWidget(self._grid_widget)
 
-        self._empty_label = QLabel("Henüz kelime eklenmemiş.\nİlk kelimenizi eklemek için yukarıdaki butona tıklayın.")
+        self._empty_label = QLabel(
+            "Henüz kelime eklenmemiş.\nİlk kelimenizi eklemek için yukarıdaki butona tıklayın."
+        )
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_label.setObjectName("emptyState")
         self._empty_label.setVisible(False)
@@ -225,9 +227,7 @@ class DashboardView(QWidget):
         self._activity_chart.set_counts(counts)
 
         total = sum(counts.values())
-        self._activity_summary.setText(
-            f"{total} tekrar" if total else "Bu hafta henüz çalışılmadı"
-        )
+        self._activity_summary.setText(f"{total} tekrar" if total else "Bu hafta henüz çalışılmadı")
 
     def _refresh_stats(self, stats: WordStats) -> None:
         # Çalış butonu, çalışma kuyruğunun tamamını sayar: planlı tekrarlar +
@@ -304,4 +304,3 @@ class DashboardView(QWidget):
         if self._word_cards and self._columns() != self._last_columns:
             self._last_columns = self._columns()
             self._relayout_grid()
-

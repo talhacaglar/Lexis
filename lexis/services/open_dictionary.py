@@ -228,9 +228,20 @@ def _unique(items: list[str]) -> list[str]:
 
 # Uygulama dil kodları → Tatoeba'nın ISO 639-3 kodları.
 _TATOEBA_LANGS = {
-    "en": "eng", "de": "deu", "fr": "fra", "es": "spa", "it": "ita",
-    "pt": "por", "ja": "jpn", "zh": "cmn", "ko": "kor", "ar": "ara",
-    "ru": "rus", "nl": "nld", "pl": "pol", "sv": "swe",
+    "en": "eng",
+    "de": "deu",
+    "fr": "fra",
+    "es": "spa",
+    "it": "ita",
+    "pt": "por",
+    "ja": "jpn",
+    "zh": "cmn",
+    "ko": "kor",
+    "ar": "ara",
+    "ru": "rus",
+    "nl": "nld",
+    "pl": "pol",
+    "sv": "swe",
 }
 
 
@@ -283,9 +294,7 @@ class OpenDictionaryService:
             "synonyms": base.get("synonyms", []),
             "antonyms": base.get("antonyms", []),
             "example_sentences": _fetch_examples(term, language),
-            "usage_notes": (
-                "" if short_tr else "Bu içerik açık sözlük kaynaklarından derlendi."
-            ),
+            "usage_notes": ("" if short_tr else "Bu içerik açık sözlük kaynaklarından derlendi."),
             "phonetic": base.get("phonetic", ""),
             "audio_url": base.get("audio_url", ""),
         }

@@ -18,7 +18,7 @@ class TagBadge(QWidget):
     """
 
     remove_requested = pyqtSignal(str)  # tag name
-    clicked = pyqtSignal(str)           # tag name
+    clicked = pyqtSignal(str)  # tag name
 
     def __init__(
         self,

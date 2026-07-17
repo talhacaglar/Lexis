@@ -41,8 +41,8 @@ class WordDetailView(QWidget):
 
     back_requested = pyqtSignal()
     delete_requested = pyqtSignal(str)  # word_id
-    word_updated = pyqtSignal(str)      # word_id
-    error_occurred = pyqtSignal(str)    # MainWindow toast gösterir
+    word_updated = pyqtSignal(str)  # word_id
+    error_occurred = pyqtSignal(str)  # MainWindow toast gösterir
 
     def __init__(self, word_service: WordService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -290,6 +290,7 @@ class WordDetailView(QWidget):
         # Quick tag add
         tag_add_row = QHBoxLayout()
         from PyQt6.QtWidgets import QLineEdit
+
         self._tag_input = QLineEdit()
         self._tag_input.setPlaceholderText("Etiket ekle...")
         self._tag_input.setFixedHeight(34)
@@ -399,7 +400,7 @@ class WordDetailView(QWidget):
             text_layout.setSpacing(10)
             text_layout.setContentsMargins(0, 0, 0, 0)
 
-            parts = ex.split('\n', 1)
+            parts = ex.split("\n", 1)
 
             foreign_lbl = QLabel(parts[0].strip())
             foreign_lbl.setWordWrap(True)

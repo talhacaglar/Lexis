@@ -11,6 +11,7 @@ class LexisError(Exception):
 
 class WordNotFoundError(LexisError):
     """Kelime veritabanında bulunamadığında fırlatılır."""
+
     def __init__(self, word_id: str):
         super().__init__(f"Kelime bulunamadı: {word_id}")
         self.word_id = word_id
@@ -18,6 +19,7 @@ class WordNotFoundError(LexisError):
 
 class DuplicateWordError(LexisError):
     """Aynı kelime aynı dil için zaten mevcutsa fırlatılır."""
+
     def __init__(self, term: str, language: str):
         super().__init__(f"'{term}' ({language}) zaten sözlükte mevcut.")
         self.term = term
@@ -26,6 +28,7 @@ class DuplicateWordError(LexisError):
 
 class AIServiceError(LexisError):
     """AI servisiyle iletişim hatalarında fırlatılır."""
+
     def __init__(self, message: str, original: Exception | None = None):
         super().__init__(f"AI Servis Hatası: {message}")
         self.original = original
@@ -33,6 +36,7 @@ class AIServiceError(LexisError):
 
 class ContentProviderError(LexisError):
     """Açık sözlük kaynaklarından içerik alınamadığında fırlatılır."""
+
     def __init__(self, message: str, original: Exception | None = None):
         super().__init__(message)
         self.original = original
@@ -40,15 +44,16 @@ class ContentProviderError(LexisError):
 
 class APIKeyMissingError(LexisError):
     """Gemini API anahtarı eksik olduğunda fırlatılır."""
+
     def __init__(self):
         super().__init__(
-            "Gemini API anahtarı bulunamadı. "
-            "Lütfen Ayarlar ekranından API anahtarınızı girin."
+            "Gemini API anahtarı bulunamadı. Lütfen Ayarlar ekranından API anahtarınızı girin."
         )
 
 
 class DatabaseError(LexisError):
     """Veritabanı işlemlerinde fırlatılır."""
+
     def __init__(self, message: str, original: Exception | None = None):
         super().__init__(f"Veritabanı Hatası: {message}")
         self.original = original

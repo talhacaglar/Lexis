@@ -23,10 +23,11 @@ class ReviewGrade(int, Enum):
     Bir tekrar oturumunda kullanıcının verdiği değerlendirme.
     Değer, SM-2 algoritmasındaki 'quality' (0-5) puanına karşılık gelir.
     """
-    AGAIN = 1   # Hatırlanamadı
-    HARD = 3    # Zorlanarak hatırlandı
-    GOOD = 4    # Hatırlandı
-    EASY = 5    # Kolayca hatırlandı
+
+    AGAIN = 1  # Hatırlanamadı
+    HARD = 3  # Zorlanarak hatırlandı
+    GOOD = 4  # Hatırlandı
+    EASY = 5  # Kolayca hatırlandı
 
     @property
     def display_name(self) -> str:
@@ -91,6 +92,7 @@ def compute_sm2(
 
 class WordStatus(str, Enum):
     """Kelimenin öğrenme durumu."""
+
     NEW = "new"
     LEARNING = "learning"
     LEARNED = "learned"
@@ -149,6 +151,7 @@ class Word:
     Tüm liste alanları Python list olarak saklanır;
     veritabanına yazılırken JSON string'e dönüştürülür.
     """
+
     term: str
     language: str = "en"
     definition: str = ""
@@ -250,7 +253,9 @@ class Word:
             "ai_generated": self.ai_generated,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
-            "last_reviewed_at": self.last_reviewed_at.isoformat() if self.last_reviewed_at else None,
+            "last_reviewed_at": self.last_reviewed_at.isoformat()
+            if self.last_reviewed_at
+            else None,
             "review_count": self.review_count,
             "ease_factor": self.ease_factor,
             "interval_days": self.interval_days,
@@ -278,9 +283,15 @@ class Word:
             is_favorite=data.get("is_favorite", False),
             tags=data.get("tags", []),
             ai_generated=data.get("ai_generated", False),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else utcnow(),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else utcnow(),
-            last_reviewed_at=datetime.fromisoformat(data["last_reviewed_at"]) if data.get("last_reviewed_at") else None,
+            created_at=datetime.fromisoformat(data["created_at"])
+            if data.get("created_at")
+            else utcnow(),
+            updated_at=datetime.fromisoformat(data["updated_at"])
+            if data.get("updated_at")
+            else utcnow(),
+            last_reviewed_at=datetime.fromisoformat(data["last_reviewed_at"])
+            if data.get("last_reviewed_at")
+            else None,
             review_count=data.get("review_count", 0),
             ease_factor=data.get("ease_factor", 2.5),
             interval_days=data.get("interval_days", 0),
@@ -292,6 +303,7 @@ class Word:
 @dataclass
 class WordStats:
     """Sözlük istatistikleri."""
+
     total: int = 0
     new: int = 0
     learning: int = 0

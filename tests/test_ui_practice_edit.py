@@ -27,6 +27,7 @@ def _reveal_and_grade(practice: PracticeView, grade: ReviewGrade) -> None:
 
 # ── Oturum içi tekrar kuyruğu ─────────────────────────────────────────────
 
+
 def test_again_requeues_card_in_same_session(practice, repo: WordRepository):
     """
     'Tekrar' verilen kart oturumu terk etmeden yeniden sorulmalı.
@@ -62,7 +63,7 @@ def test_requeued_card_counts_once(practice, repo: WordRepository):
     practice.start_session()
 
     _reveal_and_grade(practice, ReviewGrade.AGAIN)  # kuyruğa geri döner
-    _reveal_and_grade(practice, ReviewGrade.GOOD)   # ikinci kez
+    _reveal_and_grade(practice, ReviewGrade.GOOD)  # ikinci kez
 
     assert practice._reviewed == 1
     assert "1 kelime çalışıldı" in practice._done_label.text()
@@ -89,6 +90,7 @@ def test_grade_before_reveal_is_ignored(practice, repo: WordRepository):
 
 
 # ── Oturum uzunluğu ───────────────────────────────────────────────────────
+
 
 def test_session_length_limits_queue(practice, repo: WordRepository):
     repo.create_many([Word(term=f"k{i}", language="en") for i in range(30)])
@@ -118,6 +120,7 @@ def test_default_session_length_is_thirty(practice, repo: WordRepository):
 
 # ── Odak sağlamlaştırma ───────────────────────────────────────────────────
 
+
 def test_grade_buttons_do_not_steal_focus(practice):
     """
     Odak view'da kalmalı; aksi hâlde değerlendirmeden sonra Boşluk tuşu
@@ -132,17 +135,24 @@ def test_grade_buttons_do_not_steal_focus(practice):
 
 # ── Düzenleme diyaloğu ────────────────────────────────────────────────────
 
-def test_edit_dialog_populates_existing_content(qtbot, word_service: WordService, sample_word: Word):
-    word = word_service.add_word("ephemeral", "en", ai_data={
-        "definition": "Uzun tanım.",
-        "definition_short": "Kısa tanım.",
-        "part_of_speech": "Sıfat",
-        "synonyms": ["transient", "fleeting"],
-        "antonyms": ["permanent"],
-        "example_sentences": ["A\nB", "C\nD"],
-        "usage_notes": "Not.",
-        "phonetic": "/x/",
-    })
+
+def test_edit_dialog_populates_existing_content(
+    qtbot, word_service: WordService, sample_word: Word
+):
+    word = word_service.add_word(
+        "ephemeral",
+        "en",
+        ai_data={
+            "definition": "Uzun tanım.",
+            "definition_short": "Kısa tanım.",
+            "part_of_speech": "Sıfat",
+            "synonyms": ["transient", "fleeting"],
+            "antonyms": ["permanent"],
+            "example_sentences": ["A\nB", "C\nD"],
+            "usage_notes": "Not.",
+            "phonetic": "/x/",
+        },
+    )
 
     dialog = EditWordDialog(word, word_service)
     qtbot.addWidget(dialog)
@@ -171,7 +181,7 @@ def test_edit_dialog_saves_changes(qtbot, word_service: WordService):
     assert saved.definition == "elle yazılmış yeni tanım"
     assert saved.synonyms == ["a", "b", "c"]
     assert saved.tags == ["fiil", "temel"]  # etiketler küçük harfe indirilir
-    assert saved.ai_generated is False      # elle düzenlendi
+    assert saved.ai_generated is False  # elle düzenlendi
 
 
 def test_edit_dialog_rejects_empty_term(qtbot, word_service: WordService):

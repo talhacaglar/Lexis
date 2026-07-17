@@ -27,7 +27,7 @@ class TaskWorker(QThread):
     """
 
     succeeded = pyqtSignal(object)  # fonksiyonun dönüş değeri
-    failed = pyqtSignal(str)        # hata mesajı
+    failed = pyqtSignal(str)  # hata mesajı
 
     def __init__(self, fn: Callable[[], Any], parent=None) -> None:
         super().__init__(parent)

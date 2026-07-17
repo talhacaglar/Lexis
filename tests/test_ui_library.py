@@ -37,6 +37,7 @@ def _visible_terms(library) -> list[str]:
 
 # ── Sayfalama ─────────────────────────────────────────────────────────────
 
+
 def test_first_page_is_capped(library, repo: WordRepository):
     repo.create_many(_make_words(PAGE_SIZE + 25))
     library.refresh()
@@ -88,6 +89,7 @@ def test_filter_change_resets_to_first_page(library, repo: WordRepository):
 
 # ── Kart yeniden kullanımı ────────────────────────────────────────────────
 
+
 def test_cards_are_reused_across_filters(library, repo: WordRepository):
     """
     Her filtrede kartlar yok edilip yeniden yaratılmamalı; havuz büyümemeli.
@@ -134,6 +136,7 @@ def test_card_rebinds_to_new_word(library, repo: WordRepository):
 
 # ── Etiket filtresi ───────────────────────────────────────────────────────
 
+
 def test_tag_filter_lists_existing_tags(library, repo: WordRepository):
     repo.create(Word(term="bir", language="en", tags=["fiil", "temel"]))
     repo.create(Word(term="iki", language="en", tags=["temel"]))
@@ -179,6 +182,7 @@ def test_tag_selection_survives_refresh(library, repo: WordRepository):
 
 # ── Boş durumlar ──────────────────────────────────────────────────────────
 
+
 def test_empty_library_offers_to_add(library):
     library.refresh()
 
@@ -221,6 +225,7 @@ def test_clear_filters_restores_results(library, repo: WordRepository):
 
 
 # ── Duyarlı ızgara ────────────────────────────────────────────────────────
+
 
 def test_column_count_follows_width(library, repo: WordRepository, qtbot):
     """Sütun sayısı sabit 3 değil, pencere genişliğine uymalı."""

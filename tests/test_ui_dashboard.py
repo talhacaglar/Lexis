@@ -44,6 +44,7 @@ def _stat_values(dashboard) -> dict[str, str]:
 
 # ── Streak ────────────────────────────────────────────────────────────────
 
+
 def test_streak_card_shows_zero_without_reviews(dashboard):
     dashboard.refresh()
     assert _stat_values(dashboard)["Günlük Seri"] == "0"
@@ -77,6 +78,7 @@ def test_streak_card_counts_consecutive_days(dashboard, word_service: WordServic
 
 # ── Aktivite grafiği ──────────────────────────────────────────────────────
 
+
 def test_activity_chart_gets_seven_days(dashboard):
     dashboard.refresh()
     assert len(dashboard._activity_chart._counts) == ACTIVITY_DAYS
@@ -106,7 +108,7 @@ def test_activity_chart_paints_without_error(qtbot):
     chart.show()
     qtbot.waitExposed(chart)
 
-    chart.set_counts({})           # veri yok
+    chart.set_counts({})  # veri yok
     chart.repaint()
 
     today = date.today()
@@ -130,6 +132,7 @@ def test_activity_chart_handles_all_zero_days(qtbot):
 
 # ── Türkçe tarih ──────────────────────────────────────────────────────────
 
+
 def test_date_is_formatted_in_turkish():
     """strftime sistem yereline bağlıydı ve Türkçe arayüzde 'July' basıyordu."""
     text = _format_date_tr(datetime(2026, 7, 17))
@@ -139,12 +142,25 @@ def test_date_is_formatted_in_turkish():
 def test_dashboard_shows_turkish_date(dashboard):
     assert "Temmuz" in dashboard._date_label.text() or any(
         month in dashboard._date_label.text()
-        for month in ("Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-                      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık")
+        for month in (
+            "Ocak",
+            "Şubat",
+            "Mart",
+            "Nisan",
+            "Mayıs",
+            "Haziran",
+            "Temmuz",
+            "Ağustos",
+            "Eylül",
+            "Ekim",
+            "Kasım",
+            "Aralık",
+        )
     )
 
 
 # ── Çalışma kuyruğu ───────────────────────────────────────────────────────
+
 
 def test_practice_button_counts_unreviewed_words(dashboard, repo: WordRepository):
     """

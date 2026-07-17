@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QWidget
 # Renk Paleti Altyapısı
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class PaletteClass:
     BG_BASE: str
     BG_SURFACE: str
@@ -64,72 +65,72 @@ Colors = PaletteClass()
 # Minimalist, nötr (navy tonu olmayan) yakın-siyah karanlık tema.
 # Tek vurgu rengi (violet), saç teli (hairline) kenarlıklar, yumuşatılmış durum tonları.
 DARK_THEME = {
-    "BG_BASE":       "#000000",  # saf siyah
-    "BG_SURFACE":    "#0B0B0B",  # sidebar / kartlar (siyahtan ince ayrışma)
-    "BG_ELEVATED":   "#151515",  # inputlar / hover yüzeyleri
-    "BG_HOVER":      "#1E1E1E",
-    "BG_PRESSED":    "#181818",
-    "BORDER":        "#2A2A2A",
-    "BORDER_FOCUS":  "#6E6E6E",
+    "BG_BASE": "#000000",  # saf siyah
+    "BG_SURFACE": "#0B0B0B",  # sidebar / kartlar (siyahtan ince ayrışma)
+    "BG_ELEVATED": "#151515",  # inputlar / hover yüzeyleri
+    "BG_HOVER": "#1E1E1E",
+    "BG_PRESSED": "#181818",
+    "BORDER": "#2A2A2A",
+    "BORDER_FOCUS": "#6E6E6E",
     "BORDER_SUBTLE": "#191919",
-    "ACCENT":        "#FFFFFF",   # monokrom: vurgular beyaz/gri
-    "ACCENT_HOVER":  "#D8D8D8",
-    "ACCENT_MUTED":  "#1C1C1C",   # aktif/badge için nötr gri yüzey
-    "ACCENT_LIGHT":  "#FFFFFF",   # aktif metin / logo / rozet metni
-    "BTN_BG":        "#FFFFFF",   # beyaz birincil buton
-    "BTN_BG_HOVER":  "#E2E2E2",
-    "BTN_TEXT":      "#000000",
-    "TEXT_PRIMARY":   "#ECECEE",
+    "ACCENT": "#FFFFFF",  # monokrom: vurgular beyaz/gri
+    "ACCENT_HOVER": "#D8D8D8",
+    "ACCENT_MUTED": "#1C1C1C",  # aktif/badge için nötr gri yüzey
+    "ACCENT_LIGHT": "#FFFFFF",  # aktif metin / logo / rozet metni
+    "BTN_BG": "#FFFFFF",  # beyaz birincil buton
+    "BTN_BG_HOVER": "#E2E2E2",
+    "BTN_TEXT": "#000000",
+    "TEXT_PRIMARY": "#ECECEE",
     "TEXT_SECONDARY": "#9A9AA4",
-    "TEXT_MUTED":     "#5A5A62",
-    "TEXT_INVERSE":   "#000000",
-    "STATUS_NEW":     "#C6C6CC",
-    "STATUS_LEARNING":"#E8B25E",
+    "TEXT_MUTED": "#5A5A62",
+    "TEXT_INVERSE": "#000000",
+    "STATUS_NEW": "#C6C6CC",
+    "STATUS_LEARNING": "#E8B25E",
     "STATUS_LEARNED": "#5FD08A",
-    "STATUS_REVIEW":  "#F07A75",
-    "SUCCESS":        "#5FD08A",
-    "WARNING":        "#E8B25E",
-    "ERROR":          "#F07A75",
-    "INFO":           "#6FA8FF",
-    "FAVORITE":       "#FF8FB0",
-    "SCROLLBAR_BG":   "#111113",
-    "SCROLLBAR_HANDLE":"#2D2D32",
-    "SCROLLBAR_HOVER":"#45454D",
+    "STATUS_REVIEW": "#F07A75",
+    "SUCCESS": "#5FD08A",
+    "WARNING": "#E8B25E",
+    "ERROR": "#F07A75",
+    "INFO": "#6FA8FF",
+    "FAVORITE": "#FF8FB0",
+    "SCROLLBAR_BG": "#111113",
+    "SCROLLBAR_HANDLE": "#2D2D32",
+    "SCROLLBAR_HOVER": "#45454D",
 }
 
 # Temiz, beyaz tabanlı minimalist aydınlık tema.
 LIGHT_THEME = {
-    "BG_BASE":       "#F7F7F8",
-    "BG_SURFACE":    "#FFFFFF",
-    "BG_ELEVATED":   "#FFFFFF",
-    "BG_HOVER":      "#F0F0F2",
-    "BG_PRESSED":    "#E7E7EA",
-    "BORDER":        "#E6E6E9",
-    "BORDER_FOCUS":  "#6D5EF0",
+    "BG_BASE": "#F7F7F8",
+    "BG_SURFACE": "#FFFFFF",
+    "BG_ELEVATED": "#FFFFFF",
+    "BG_HOVER": "#F0F0F2",
+    "BG_PRESSED": "#E7E7EA",
+    "BORDER": "#E6E6E9",
+    "BORDER_FOCUS": "#6D5EF0",
     "BORDER_SUBTLE": "#EEEEF0",
-    "ACCENT":        "#6D5EF0",
-    "ACCENT_HOVER":  "#5A49E8",
-    "ACCENT_MUTED":  "#EFEDFD",
-    "ACCENT_LIGHT":  "#5A49E8",
-    "BTN_BG":        "#6D5EF0",  # açık temada birincil buton vurgu rengi
-    "BTN_BG_HOVER":  "#5A49E8",
-    "BTN_TEXT":      "#FFFFFF",
-    "TEXT_PRIMARY":   "#18181B",
+    "ACCENT": "#6D5EF0",
+    "ACCENT_HOVER": "#5A49E8",
+    "ACCENT_MUTED": "#EFEDFD",
+    "ACCENT_LIGHT": "#5A49E8",
+    "BTN_BG": "#6D5EF0",  # açık temada birincil buton vurgu rengi
+    "BTN_BG_HOVER": "#5A49E8",
+    "BTN_TEXT": "#FFFFFF",
+    "TEXT_PRIMARY": "#18181B",
     "TEXT_SECONDARY": "#55555F",
-    "TEXT_MUTED":     "#9B9BA6",
-    "TEXT_INVERSE":   "#FFFFFF",
-    "STATUS_NEW":     "#6D5EF0",
-    "STATUS_LEARNING":"#C8821C",
+    "TEXT_MUTED": "#9B9BA6",
+    "TEXT_INVERSE": "#FFFFFF",
+    "STATUS_NEW": "#6D5EF0",
+    "STATUS_LEARNING": "#C8821C",
     "STATUS_LEARNED": "#1B9E55",
-    "STATUS_REVIEW":  "#DD5752",
-    "SUCCESS":        "#1B9E55",
-    "WARNING":        "#C8821C",
-    "ERROR":          "#DD5752",
-    "INFO":           "#3B82F6",
-    "FAVORITE":       "#E85C92",
-    "SCROLLBAR_BG":   "#F0F0F2",
-    "SCROLLBAR_HANDLE":"#D7D7DC",
-    "SCROLLBAR_HOVER":"#BEBEC6",
+    "STATUS_REVIEW": "#DD5752",
+    "SUCCESS": "#1B9E55",
+    "WARNING": "#C8821C",
+    "ERROR": "#DD5752",
+    "INFO": "#3B82F6",
+    "FAVORITE": "#E85C92",
+    "SCROLLBAR_BG": "#F0F0F2",
+    "SCROLLBAR_HANDLE": "#D7D7DC",
+    "SCROLLBAR_HOVER": "#BEBEC6",
 }
 
 _current_theme = "dark"
@@ -150,9 +151,9 @@ set_theme("dark")
 
 def STATUS_COLORS():
     return {
-        "new":          Colors.STATUS_NEW,
-        "learning":     Colors.STATUS_LEARNING,
-        "learned":      Colors.STATUS_LEARNED,
+        "new": Colors.STATUS_NEW,
+        "learning": Colors.STATUS_LEARNING,
+        "learned": Colors.STATUS_LEARNED,
         "needs_review": Colors.STATUS_REVIEW,
     }
 
@@ -191,6 +192,7 @@ def _badge_status_rules() -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # QSS Stylesheet
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def get_stylesheet() -> str:
     return f"""
@@ -1133,16 +1135,16 @@ def get_status_style(status: str) -> tuple[str, str]:
     """Status için (background_color, text_color) döndürür."""
     if _current_theme == "dark":
         color_map = {
-            "new":          (Colors.ACCENT_MUTED, Colors.ACCENT_LIGHT),
-            "learning":     ("#2A2210", Colors.STATUS_LEARNING),
-            "learned":      ("#13271C", Colors.STATUS_LEARNED),
+            "new": (Colors.ACCENT_MUTED, Colors.ACCENT_LIGHT),
+            "learning": ("#2A2210", Colors.STATUS_LEARNING),
+            "learned": ("#13271C", Colors.STATUS_LEARNED),
             "needs_review": ("#2C1716", Colors.STATUS_REVIEW),
         }
     else:
         color_map = {
-            "new":          (Colors.ACCENT_MUTED, Colors.ACCENT_LIGHT),
-            "learning":     ("#FBF1DC", Colors.STATUS_LEARNING),
-            "learned":      ("#E0F3E8", Colors.STATUS_LEARNED),
+            "new": (Colors.ACCENT_MUTED, Colors.ACCENT_LIGHT),
+            "learning": ("#FBF1DC", Colors.STATUS_LEARNING),
+            "learned": ("#E0F3E8", Colors.STATUS_LEARNED),
             "needs_review": ("#FBE7E6", Colors.STATUS_REVIEW),
         }
     return color_map.get(status, (Colors.BG_ELEVATED, Colors.TEXT_SECONDARY))

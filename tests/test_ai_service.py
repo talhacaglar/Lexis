@@ -53,6 +53,7 @@ def test_format_examples_empty():
 
 # ── Prompt kurulumu ───────────────────────────────────────────────────────
 
+
 def test_prompt_includes_term_and_language_name():
     prompt = _build_prompt("ephemeral", "de")
     assert "ephemeral" in prompt
@@ -64,6 +65,7 @@ def test_prompt_falls_back_to_code_for_unknown_language():
 
 
 # ── Yapılandırma ──────────────────────────────────────────────────────────
+
 
 def test_is_not_configured_without_key():
     assert AIService(api_key=None).is_configured is False
@@ -93,6 +95,7 @@ def test_configure_sets_timeout(monkeypatch):
 
 # ── Yeniden deneme ────────────────────────────────────────────────────────
 
+
 class _FakeResponse:
     def __init__(self, parsed=None, finish_reason="STOP", block_reason=None):
         self.parsed = parsed
@@ -103,8 +106,11 @@ class _FakeResponse:
 
 def _word_data() -> WordData:
     return WordData(
-        definition="tanım", definition_short="kısa", part_of_speech="isim",
-        synonyms=["a"], antonyms=["b"],
+        definition="tanım",
+        definition_short="kısa",
+        part_of_speech="isim",
+        synonyms=["a"],
+        antonyms=["b"],
         example_sentences=[ExampleSentence(foreign="F", turkish="T")],
         usage_notes="not",
     )
@@ -133,10 +139,13 @@ def _service_with(monkeypatch, side_effects: list) -> AIService:
 
 def test_retries_transient_error_then_succeeds(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _s: None)  # testi bekletme
-    service = _service_with(monkeypatch, [
-        RuntimeError("503 Service Unavailable"),
-        _FakeResponse(parsed=_word_data()),
-    ])
+    service = _service_with(
+        monkeypatch,
+        [
+            RuntimeError("503 Service Unavailable"),
+            _FakeResponse(parsed=_word_data()),
+        ],
+    )
 
     data = service.generate_word_data("word", "en")
 
@@ -165,19 +174,23 @@ def test_permanent_error_is_not_retried(monkeypatch):
     assert service._calls["n"] == 1
 
 
-@pytest.mark.parametrize("error,retryable", [
-    (RuntimeError("429 too many requests"), True),
-    (RuntimeError("503 unavailable"), True),
-    (RuntimeError("connection reset"), True),
-    (RuntimeError("request timed out"), True),
-    (RuntimeError("400 invalid argument"), False),
-    (RuntimeError("permission denied"), False),
-])
+@pytest.mark.parametrize(
+    "error,retryable",
+    [
+        (RuntimeError("429 too many requests"), True),
+        (RuntimeError("503 unavailable"), True),
+        (RuntimeError("connection reset"), True),
+        (RuntimeError("request timed out"), True),
+        (RuntimeError("400 invalid argument"), False),
+        (RuntimeError("permission denied"), False),
+    ],
+)
 def test_retryable_classification(error, retryable):
     assert _is_retryable(error) is retryable
 
 
 # ── Güvenlik / boş yanıt denetimi ─────────────────────────────────────────
+
 
 def test_blocked_prompt_gives_clear_message(monkeypatch):
     service = _service_with(monkeypatch, [_FakeResponse(block_reason="SAFETY")])
@@ -187,18 +200,18 @@ def test_blocked_prompt_gives_clear_message(monkeypatch):
 
 
 def test_safety_finish_reason_gives_clear_message(monkeypatch):
-    service = _service_with(monkeypatch, [
-        _FakeResponse(parsed=_word_data(), finish_reason="SAFETY")
-    ])
+    service = _service_with(
+        monkeypatch, [_FakeResponse(parsed=_word_data(), finish_reason="SAFETY")]
+    )
 
     with pytest.raises(AIServiceError, match="güvenlik filtresi"):
         service.generate_word_data("word", "en")
 
 
 def test_max_tokens_gives_clear_message(monkeypatch):
-    service = _service_with(monkeypatch, [
-        _FakeResponse(parsed=_word_data(), finish_reason="MAX_TOKENS")
-    ])
+    service = _service_with(
+        monkeypatch, [_FakeResponse(parsed=_word_data(), finish_reason="MAX_TOKENS")]
+    )
 
     with pytest.raises(AIServiceError, match="uzunluk sınırına"):
         service.generate_word_data("word", "en")
@@ -216,11 +229,17 @@ def test_empty_candidates_gives_clear_message(monkeypatch):
 def test_falls_back_to_parsing_text_when_parsed_missing(monkeypatch):
     """SDK doğrulanmış nesne vermezse ham metin ayrıştırılır."""
     response = _FakeResponse(parsed=None)
-    response.text = json.dumps({
-        "definition": "metinden", "definition_short": "kısa",
-        "part_of_speech": "isim", "synonyms": [], "antonyms": [],
-        "example_sentences": [], "usage_notes": "",
-    })
+    response.text = json.dumps(
+        {
+            "definition": "metinden",
+            "definition_short": "kısa",
+            "part_of_speech": "isim",
+            "synonyms": [],
+            "antonyms": [],
+            "example_sentences": [],
+            "usage_notes": "",
+        }
+    )
     service = _service_with(monkeypatch, [response])
 
     assert service.generate_word_data("word", "en")["definition"] == "metinden"

@@ -97,9 +97,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 """
 
 
-def _add_missing_columns(
-    conn: sqlite3.Connection, columns: dict[str, str], label: str
-) -> None:
+def _add_missing_columns(conn: sqlite3.Connection, columns: dict[str, str], label: str) -> None:
     """words tablosunda eksik sütunları ekler (idempotent)."""
     existing = {row["name"] for row in conn.execute("PRAGMA table_info(words)")}
     for column, definition in columns.items():
@@ -146,7 +144,12 @@ class Database:
         with self.connection() as conn:
             conn.execute(CREATE_SCHEMA_VERSION)
 
-            is_new = conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='words'").fetchone()[0] == 0
+            is_new = (
+                conn.execute(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='words'"
+                ).fetchone()[0]
+                == 0
+            )
 
             conn.execute(CREATE_WORDS_TABLE)
             conn.execute(CREATE_SETTINGS_TABLE)
@@ -212,9 +215,7 @@ class Database:
 
     def get_setting(self, key: str, default: str = "") -> str:
         with self.connection() as conn:
-            row = conn.execute(
-                "SELECT value FROM app_settings WHERE key = ?", (key,)
-            ).fetchone()
+            row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
             return row["value"] if row else default
 
     def set_setting(self, key: str, value: str) -> None:

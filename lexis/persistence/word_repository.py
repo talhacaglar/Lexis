@@ -29,6 +29,7 @@ def _wrap_db_errors(message: str) -> Callable[[Callable[..., T]], Callable[..., 
     Ham sqlite3 hatalarını DatabaseError'a sarmalar; domain hataları
     (WordNotFoundError gibi) olduğu gibi çağırana geçer.
     """
+
     def decorator(fn: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(fn)
         def wrapper(*args, **kwargs) -> T:
@@ -38,7 +39,9 @@ def _wrap_db_errors(message: str) -> Callable[[Callable[..., T]], Callable[..., 
                 raise
             except Exception as e:
                 raise DatabaseError(message, original=e) from e
+
         return wrapper
+
     return decorator
 
 
@@ -94,9 +97,7 @@ def _row_to_word(row) -> Word:
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
         last_reviewed_at=(
-            datetime.fromisoformat(row["last_reviewed_at"])
-            if row["last_reviewed_at"]
-            else None
+            datetime.fromisoformat(row["last_reviewed_at"]) if row["last_reviewed_at"] else None
         ),
         review_count=row["review_count"],
         ease_factor=row["ease_factor"],
@@ -225,7 +226,9 @@ class WordRepository:
             logger.info(f"{len(words)} kelime toplu eklendi.")
             return len(words)
         except Exception as e:
-            raise DatabaseError(f"Kelimeler toplu eklenemedi ({len(words)} kayıt)", original=e) from e
+            raise DatabaseError(
+                f"Kelimeler toplu eklenemedi ({len(words)} kayıt)", original=e
+            ) from e
 
     # ── Read ──────────────────────────────────────────────────────────────
 
@@ -233,9 +236,7 @@ class WordRepository:
     def get_by_id(self, word_id: str) -> Word:
         """ID'ye göre kelime getirir."""
         with self._db.connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM words WHERE id = ?", (word_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM words WHERE id = ?", (word_id,)).fetchone()
         if not row:
             raise WordNotFoundError(word_id)
         return _row_to_word(row)
@@ -287,9 +288,7 @@ class WordRepository:
         """get_all ile aynı filtrelerle eşleşen toplam kayıt sayısı (sayfalama için)."""
         where_clause, params = _build_filters(search, language, status, favorites_only, tag)
         with self._db.connection() as conn:
-            return conn.execute(
-                f"SELECT COUNT(*) FROM words {where_clause}", params
-            ).fetchone()[0]
+            return conn.execute(f"SELECT COUNT(*) FROM words {where_clause}", params).fetchone()[0]
 
     @_wrap_db_errors("Kelime varlığı kontrol edilemedi")
     def exists(self, term: str, language: str) -> bool:
@@ -364,9 +363,7 @@ class WordRepository:
         now = utcnow().isoformat()
         with self._db.connection() as conn:
             total = conn.execute("SELECT COUNT(*) FROM words").fetchone()[0]
-            new = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE status = 'new'"
-            ).fetchone()[0]
+            new = conn.execute("SELECT COUNT(*) FROM words WHERE status = 'new'").fetchone()[0]
             learning = conn.execute(
                 "SELECT COUNT(*) FROM words WHERE status = 'learning'"
             ).fetchone()[0]
@@ -376,9 +373,9 @@ class WordRepository:
             needs_review = conn.execute(
                 "SELECT COUNT(*) FROM words WHERE status = 'needs_review'"
             ).fetchone()[0]
-            favorites = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE is_favorite = 1"
-            ).fetchone()[0]
+            favorites = conn.execute("SELECT COUNT(*) FROM words WHERE is_favorite = 1").fetchone()[
+                0
+            ]
             added_today = conn.execute(
                 "SELECT COUNT(*) FROM words WHERE created_at >= ? AND created_at < ?",
                 (day_start, day_end),
@@ -392,9 +389,9 @@ class WordRepository:
                 "SELECT COUNT(*) FROM words WHERE due_at IS NOT NULL AND due_at <= ?",
                 (now,),
             ).fetchone()[0]
-            unreviewed = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE due_at IS NULL"
-            ).fetchone()[0]
+            unreviewed = conn.execute("SELECT COUNT(*) FROM words WHERE due_at IS NULL").fetchone()[
+                0
+            ]
 
         return WordStats(
             total=total,
@@ -436,10 +433,7 @@ class WordRepository:
 
         oldest = today - timedelta(days=days - 1)
         start_utc = (
-            datetime.combine(oldest, dtime.min)
-            .astimezone()
-            .astimezone(timezone.utc)
-            .isoformat()
+            datetime.combine(oldest, dtime.min).astimezone().astimezone(timezone.utc).isoformat()
         )
 
         with self._db.connection() as conn:
