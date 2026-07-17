@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from lexis.domain.exceptions import DuplicateWordError
+from lexis.domain.exceptions import ContentProviderError, DuplicateWordError
 from lexis.domain.models import ReviewGrade, Word, WordStats, WordStatus
 from lexis.persistence.word_repository import WordRepository
 from lexis.services.ai_service import AIService
@@ -222,6 +222,38 @@ class WordService:
     # Eski ad; UI ve testler kademeli geçsin diye korunuyor.
     generate_ai_content = generate_content
 
+    def generate_auto(self, term: str) -> tuple[dict, str]:
+        """
+        Dili kendi belirleyip içerik üretir.
+
+        Adaylar sırayla denenir: ilk tahminde pes etmek, çok dilli kelimelerde
+        hatalı "bulunamadı" veriyordu (ör. "Baran" İngilizce'de sözlük kelimesi
+        değil ama Lehçe'de "koç" demek — İngilizce denenip vazgeçiliyordu).
+
+        Yalnızca "bu dilde yok" hatasında sonraki adaya geçilir; ağ/anahtar
+        arızası gibi gerçek hatalarda hemen yükseltilir, yoksa çökmüş bir servis
+        için aynı hata üç kez beklenirdi.
+
+        Returns:
+            (içerik, kullanılan dil kodu)
+
+        Raises:
+            ContentProviderError: Hiçbir adayda kayıt bulunamazsa.
+        """
+        candidates = self.detect_languages(term)
+        last_error: ContentProviderError | None = None
+
+        for language in candidates:
+            try:
+                return self.generate_content(term, language), language
+            except ContentProviderError as e:
+                logger.info("'%s' %s dilinde bulunamadı, sonraki aday", term, language)
+                last_error = e
+
+        if last_error is not None:
+            raise last_error
+        raise ContentProviderError(f"'{term}' için sözlük kaydı bulunamadı.")
+
     def regenerate_ai_content(self, word_id: str) -> Word:
         """Mevcut kelimenin içeriğini yeniden üretir."""
         word = self._repo.get_by_id(word_id)
@@ -262,13 +294,17 @@ class WordService:
         """Yazılmakta olan kelimeyi tamamlar (açık sözlüklerden)."""
         return self._open_dict.complete_terms(prefix, language)
 
-    def detect_language(self, term: str) -> str:
+    def detect_languages(self, term: str) -> list[str]:
         """
-        Kelimenin dilini tahmin eder.
+        Kelimenin ait olabileceği dilleri olasılık sırasıyla döndürür.
 
         Gemini anahtarı olsa da açık sözlüğe sorulur: tahmin için üretken bir
         modele para/kota harcamanın anlamı yok.
         """
+        return self._open_dict.detect_languages(term)
+
+    def detect_language(self, term: str) -> str:
+        """En olası tek dili döndürür (bkz. detect_languages)."""
         return self._open_dict.detect_language(term)
 
     def configure_ai(self, api_key: str | None) -> None:

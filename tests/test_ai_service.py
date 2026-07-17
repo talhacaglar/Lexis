@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 from google import genai
 
-from lexis.domain.exceptions import AIServiceError, APIKeyMissingError
+from lexis.domain.exceptions import AIServiceError, APIKeyMissingError, ContentProviderError
 from lexis.services.ai_service import (
     MAX_ATTEMPTS,
     REQUEST_TIMEOUT_MS,
@@ -191,8 +191,24 @@ def test_not_found_raises_instead_of_returning_guessed_content(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _s: None)
     service = _service_with(monkeypatch, [_FakeResponse(parsed=WordData(found=False))])
 
-    with pytest.raises(AIServiceError, match="Baran"):
+    with pytest.raises(ContentProviderError, match="Baran"):
         service.generate_word_data("Baran", "en")
+
+
+def test_not_found_is_not_an_ai_service_error(monkeypatch):
+    """
+    "Bu dilde böyle kelime yok" bir servis arızası değil.
+
+    Ayrı tip olmasa çağıran, gerçek API hatalarıyla bunu ayırt edemez ve başka
+    bir dil denemesi gerektiğini anlayamazdı.
+    """
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    service = _service_with(monkeypatch, [_FakeResponse(parsed=WordData(found=False))])
+
+    with pytest.raises(ContentProviderError) as exc:
+        service.generate_word_data("Baran", "en")
+
+    assert not isinstance(exc.value, AIServiceError)
 
 
 def test_not_found_error_is_not_retried(monkeypatch):
@@ -200,7 +216,7 @@ def test_not_found_error_is_not_retried(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _s: None)
     service = _service_with(monkeypatch, [_FakeResponse(parsed=WordData(found=False))])
 
-    with pytest.raises(AIServiceError):
+    with pytest.raises(ContentProviderError):
         service.generate_word_data("Baran", "en")
 
     assert service._calls["n"] == 1

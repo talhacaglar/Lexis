@@ -55,6 +55,11 @@ SUGGESTION_POOL = 15
 # Yazarken tamamlama için en az bu kadar harf gerekir; daha kısası her kelimeyi
 # eşleştirip gürültü üretir.
 MIN_COMPLETION_CHARS = 3
+
+# Kelime birden çok dilde geçiyorsa en fazla bu kadarı denenir. Her deneme ayrı
+# bir ağ isteği (Gemini'de birkaç saniye); sınırsız aday, bulunamayan kelimede
+# kullanıcıyı dakikalarca bekletirdi.
+MAX_LANGUAGE_CANDIDATES = 3
 # Benzerlik eşiği: altındakiler yazım hatası değil, alakasız kelimelerdir.
 # Ölçüldü: 0.6 "seperate→separate" (0.88) ve "Hause→house" (0.80) gibi gerçek
 # düzeltmeleri geçirirken alakasızları eler.
@@ -421,34 +426,40 @@ class OpenDictionaryService:
         """Yapılandırma gerektirmez: her zaman kullanılabilir."""
         return True
 
-    def detect_language(self, term: str) -> str:
+    def detect_languages(self, term: str) -> list[str]:
         """
-        Kelimenin hangi dile ait olduğunu tahmin eder.
+        Kelimenin ait olabileceği dilleri olasılık sırasıyla döndürür.
 
-        Wiktionary tek bir sorguda kelimenin geçtiği tüm dilleri döndürür.
-        Tahmin kesin değil ve olamaz: çok dilli kelimeler yaygın (ölçüldü —
-        "Haus" için yanıt ['en', 'bar', 'other', 'de', ...], yani Almanca'nın
-        yanında İngilizce de var). Bu yüzden arayüz sonucu düzeltme imkânı sunar.
+        Tek bir dil değil liste: tahmin kesin olamaz, çünkü çok dilli kelimeler
+        yaygın (ölçüldü — Wiktionary "Baran" için ['en', 'other', 'pl', 'sk',
+        'tr'] veriyor; İngilizce'de soyadı, Lehçe'de "koç" demek). Çağıran
+        adayları sırayla deneyip ilk tutanı kullanır, ilk tahminde pes etmez.
 
-        İngilizce öncelikli: hem en olası kullanım, hem de yalnızca İngilizce'de
-        telaffuz ve ses veren zengin kaynağa (dictionaryapi.dev) bağlanıyor.
-        Bulunamazsa yine İngilizce'ye düşülür.
+        İngilizce başa alınır: hem en olası kullanım, hem de telaffuz ve ses
+        veren tek zengin kaynağa (dictionaryapi.dev) bağlanıyor. Yanlışsa bedeli
+        yalnızca bir deneme.
         """
         term = term.strip()
         if not term:
-            return RICH_LANGUAGE
+            return [RICH_LANGUAGE]
 
         data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(term)))
         if not isinstance(data, dict):
-            return RICH_LANGUAGE
+            return [RICH_LANGUAGE]
 
         found = [code for code in data if code in SUPPORTED_LANGUAGES]
         if not found:
-            return RICH_LANGUAGE
+            return [RICH_LANGUAGE]
 
-        detected = RICH_LANGUAGE if RICH_LANGUAGE in found else found[0]
-        logger.info("'%s' için dil tahmini: %s (adaylar: %s)", term, detected, found)
-        return detected
+        # İngilizce öne; gerisi Wiktionary'nin kendi sırasında kalır.
+        found.sort(key=lambda code: code != RICH_LANGUAGE)
+        candidates = found[:MAX_LANGUAGE_CANDIDATES]
+        logger.info("'%s' için dil adayları: %s", term, candidates)
+        return candidates
+
+    def detect_language(self, term: str) -> str:
+        """En olası tek dili döndürür (bkz. detect_languages)."""
+        return self.detect_languages(term)[0]
 
     def suggest_terms(self, term: str, language: str = "en") -> list[str]:
         """

@@ -18,6 +18,7 @@ def dialog(qtbot, word_service: WordService, monkeypatch) -> AddWordDialog:
     # Dil algılama ağa çıkar; testte sahte tutulmazsa arka plan worker'ı
     # diyalog kapandıktan sonra çalışmaya devam edip süreci çökertiyor.
     monkeypatch.setattr(word_service, "detect_language", lambda term: "en")
+    monkeypatch.setattr(word_service, "detect_languages", lambda term: ["en"])
     d = AddWordDialog(word_service)
     qtbot.addWidget(d)
     d.resize(560, 680)
@@ -89,7 +90,7 @@ def test_language_popup_uses_theme_background(dialog, qtbot):
 
 def test_language_is_detected_not_asked(dialog, qtbot, monkeypatch):
     """Kullanıcıdan dil istenmez: kelimeden algılanıp seçiciye yansıtılır."""
-    monkeypatch.setattr(dialog._service, "detect_language", lambda term: "de")
+    monkeypatch.setattr(dialog._service, "detect_languages", lambda term: ["de"])
     monkeypatch.setattr(dialog._service, "generate_content", lambda t, lang: {"definition": lang})
 
     dialog._term_input.setText("Haus")
@@ -105,7 +106,7 @@ def test_detected_language_does_not_trigger_regeneration(dialog, qtbot, monkeypa
 
     Sayılsaydı sonsuz yeniden üretim döngüsü olurdu.
     """
-    monkeypatch.setattr(dialog._service, "detect_language", lambda term: "de")
+    monkeypatch.setattr(dialog._service, "detect_languages", lambda term: ["de"])
     calls: list[str] = []
     monkeypatch.setattr(
         dialog._service,
@@ -123,7 +124,6 @@ def test_detected_language_does_not_trigger_regeneration(dialog, qtbot, monkeypa
 
 def test_correcting_language_regenerates_content(dialog, qtbot, monkeypatch):
     """Algılama yanılabilir; düzeltince içerik o dile göre yeniden üretilir."""
-    monkeypatch.setattr(dialog._service, "detect_language", lambda term: "en")
     calls: list[str] = []
     monkeypatch.setattr(
         dialog._service,
@@ -162,7 +162,6 @@ def test_short_definition_shows_its_beginning(dialog, qtbot, monkeypatch):
     Uzun tanımda QLineEdit sona kayıp baş harfi kırpıyordu
     ("Genellikle..." yerine "enellikle...").
     """
-    monkeypatch.setattr(dialog._service, "detect_language", lambda term: "en")
     long_text = "Genellikle dar gelirli ailelerin barındığı, kalabalık ve bakımsız apartman binası."
     monkeypatch.setattr(
         dialog._service, "generate_content", lambda t, lang: {"definition_short": long_text}

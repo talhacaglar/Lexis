@@ -20,7 +20,7 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
-from lexis.domain.exceptions import AIServiceError, APIKeyMissingError
+from lexis.domain.exceptions import AIServiceError, APIKeyMissingError, ContentProviderError
 from lexis.domain.models import SUPPORTED_LANGUAGES
 
 logger = logging.getLogger(__name__)
@@ -246,10 +246,13 @@ class AIService:
                 data = WordData.model_validate(json.loads(response.text))
 
             if not data.found:
+                # AIServiceError değil: bu bir servis arızası değil, "bu dilde
+                # böyle bir kelime yok" bilgisi. Ayrı tip, çağıranın başka bir
+                # dili denemesine ve gerçek API hatalarını ayırt etmesine izin
+                # verir (açık sözlük kaynağı da aynı tipi fırlatıyor).
                 lang_name = SUPPORTED_LANGUAGES.get(language, language)
-                raise AIServiceError(
-                    f"'{term}' için {lang_name} dilinde bir sözlük kaydı bulunamadı. "
-                    "Yazımı kontrol edin ya da farklı bir kelime deneyin."
+                raise ContentProviderError(
+                    f"'{term}' {lang_name} dilinde bir sözlük kelimesi değil."
                 )
 
             return {
@@ -264,7 +267,7 @@ class AIService:
         except json.JSONDecodeError as e:
             logger.error(f"AI yanıtı JSON parse hatası: {e}")
             raise AIServiceError("AI yanıtı ayrıştırılamadı.", original=e) from e
-        except (APIKeyMissingError, AIServiceError):
+        except (APIKeyMissingError, AIServiceError, ContentProviderError):
             raise
         except Exception as e:
             logger.error(f"Gemini API hatası: {e}")

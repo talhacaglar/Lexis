@@ -4,7 +4,7 @@ Lexis — Tests: Word Service
 
 import pytest
 
-from lexis.domain.exceptions import DuplicateWordError
+from lexis.domain.exceptions import ContentProviderError, DuplicateWordError
 from lexis.domain.models import WordStatus
 from lexis.services.word_service import WordService
 
@@ -122,6 +122,59 @@ class TestContentProviderSelection:
         assert data["definition"] == "gemini tanımı"
         assert fake_open.calls == []  # açık sözlüğe hiç gidilmemeli
 
+    def test_auto_tries_the_next_language_when_the_word_is_not_found(self, repo, ai_service):
+        """
+        Çok dilli kelimede ilk tahminde pes edilmemeli.
+
+        Gerçek vaka: "Baran" İngilizce'de sözlük kelimesi değil ama Lehçe'de
+        "koç" demek. Wiktionary ikisini de aday gösteriyor; İngilizce denenip
+        vazgeçilince kullanıcı haksız yere "bulunamadı" görüyordu.
+        """
+        provider = _LanguageAwareProvider(known={"pl": "koç"})
+        service = WordService(repo, ai_service, open_dictionary=provider)
+        provider.candidates = ["en", "pl"]
+
+        data, language = service.generate_auto("Baran")
+
+        assert language == "pl"
+        assert data["definition"] == "koç"
+        assert provider.calls == [("Baran", "en"), ("Baran", "pl")]
+
+    def test_auto_stops_at_the_first_language_that_works(self, repo, ai_service):
+        """Tutan adaydan sonrası denenmemeli: her deneme bir ağ isteği."""
+        provider = _LanguageAwareProvider(known={"en": "ram"})
+        service = WordService(repo, ai_service, open_dictionary=provider)
+        provider.candidates = ["en", "pl", "de"]
+
+        _data, language = service.generate_auto("ram")
+
+        assert language == "en"
+        assert provider.calls == [("ram", "en")]
+
+    def test_auto_raises_when_no_language_has_the_word(self, repo, ai_service):
+        provider = _LanguageAwareProvider(known={})
+        service = WordService(repo, ai_service, open_dictionary=provider)
+        provider.candidates = ["en", "pl"]
+
+        with pytest.raises(ContentProviderError):
+            service.generate_auto("zzzqqxyz")
+
+    def test_auto_does_not_retry_other_languages_on_a_real_failure(self, repo, ai_service):
+        """
+        Ağ/anahtar arızasında adaylar taranmamalı.
+
+        Taransaydı çökmüş bir servis için kullanıcı aynı hatayı üç kez beklerdi.
+        """
+        provider = _LanguageAwareProvider(known={})
+        provider.explode = RuntimeError("ağ yok")
+        service = WordService(repo, ai_service, open_dictionary=provider)
+        provider.candidates = ["en", "pl", "de"]
+
+        with pytest.raises(RuntimeError):
+            service.generate_auto("ephemeral")
+
+        assert len(provider.calls) == 1
+
     def test_add_word_stores_pronunciation(self, repo, ai_service):
         service = WordService(repo, ai_service, open_dictionary=_RecordingProvider())
         data = service.generate_content("ephemeral", "en")
@@ -176,3 +229,32 @@ class _RecordingProvider:
             "phonetic": "/təst/",
             "audio_url": "https://example.org/a.mp3",
         }
+
+
+class _LanguageAwareProvider:
+    """
+    Yalnızca belirli dillerde kelimeyi 'bilen' sahte sağlayıcı.
+
+    Gerçek sağlayıcılar gibi, bilmediği dilde ContentProviderError fırlatır.
+    """
+
+    def __init__(self, known: dict[str, str]) -> None:
+        self._known = known  # dil kodu -> tanım
+        self.candidates: list[str] = ["en"]
+        self.calls: list[tuple[str, str]] = []
+        self.explode: Exception | None = None
+
+    @property
+    def is_configured(self) -> bool:
+        return True
+
+    def detect_languages(self, term: str) -> list[str]:
+        return self.candidates
+
+    def generate_word_data(self, term: str, language: str = "en") -> dict:
+        self.calls.append((term, language))
+        if self.explode is not None:
+            raise self.explode
+        if language not in self._known:
+            raise ContentProviderError(f"'{term}' {language} dilinde yok.")
+        return {"definition": self._known[language]}

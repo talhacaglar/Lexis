@@ -322,6 +322,34 @@ def test_capitalizing_keeps_the_rest_of_the_word(service, fake_network):
 # ── Dil algılama ──────────────────────────────────────────────────────────
 
 
+def test_detect_languages_returns_all_supported_candidates(service, fake_network):
+    """
+    Tek dil değil aday listesi: çağıran ilk tahminde pes etmesin.
+
+    Gerçek vaka: Wiktionary "Baran" için ['en', 'other', 'pl', 'sk', 'tr']
+    veriyor — İngilizce'de soyadı, Lehçe'de "koç". Yalnızca ilk adayı denemek
+    haksız "bulunamadı" üretiyordu.
+    """
+    fake_network["definition"] = {"en": [{}], "other": [{}], "pl": [{}], "sk": [{}]}
+
+    # 'other' ve 'sk' uygulamada desteklenmiyor; aday olmamalılar.
+    assert service.detect_languages("Baran") == ["en", "pl"]
+
+
+def test_detect_languages_puts_english_first(service, fake_network):
+    """İngilizce en olası kullanım ve telaffuz veren tek zengin kaynak."""
+    fake_network["definition"] = {"pl": [{}], "de": [{}], "en": [{}]}
+
+    assert service.detect_languages("baran")[0] == "en"
+
+
+def test_detect_languages_is_capped(service, fake_network):
+    """Her aday bir ağ isteği; sınırsız aday kullanıcıyı dakikalarca bekletirdi."""
+    fake_network["definition"] = dict.fromkeys(["en", "de", "fr", "es", "it", "pl"], [{}])
+
+    assert len(service.detect_languages("word")) == od.MAX_LANGUAGE_CANDIDATES
+
+
 def test_detect_language_prefers_english_when_present(service, fake_network):
     """
     Çok dilli kelimelerde İngilizce tercih edilir.

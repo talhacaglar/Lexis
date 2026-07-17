@@ -358,9 +358,11 @@ class AddWordDialog(QDialog):
 
     def _generate(self, term: str, language: str | None) -> dict:
         """Arka planda çalışır: dili belirler, içeriği üretir, ikisini döndürür."""
-        lang_code = language or self._service.detect_language(term)
-        data = self._service.generate_content(term, lang_code)
-        return {**data, "_language": lang_code}
+        if language:
+            return {**self._service.generate_content(term, language), "_language": language}
+        # Dil verilmediyse servis adayları sırayla dener ve tutanı bildirir.
+        data, detected = self._service.generate_auto(term)
+        return {**data, "_language": detected}
 
     def _release_worker(self, worker: TaskWorker) -> None:
         """
