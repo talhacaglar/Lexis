@@ -262,6 +262,15 @@ class WordService:
         """Yazılmakta olan kelimeyi tamamlar (açık sözlüklerden)."""
         return self._open_dict.complete_terms(prefix, language)
 
+    def detect_language(self, term: str) -> str:
+        """
+        Kelimenin dilini tahmin eder.
+
+        Gemini anahtarı olsa da açık sözlüğe sorulur: tahmin için üretken bir
+        modele para/kota harcamanın anlamı yok.
+        """
+        return self._open_dict.detect_language(term)
+
     def configure_ai(self, api_key: str | None) -> None:
         """
         AI istemcisini yeni API anahtarıyla yeniden yapılandırır.

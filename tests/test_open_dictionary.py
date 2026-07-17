@@ -210,7 +210,7 @@ def test_suggestions_prefer_source_order_over_string_similarity(service, fake_ne
         sp=["freind", "frind", "feind"],
     )
 
-    assert service.suggest_terms("freind", "en")[0] == "friend"
+    assert service.suggest_terms("freind", "en")[0] == "Friend"
 
 
 def test_suggestions_exclude_the_query_itself(service, fake_network):
@@ -220,7 +220,7 @@ def test_suggestions_exclude_the_query_itself(service, fake_network):
     suggestions = service.suggest_terms("recieve", "en")
 
     assert "recieve" not in [s.casefold() for s in suggestions]
-    assert "receive" in suggestions
+    assert "Receive" in suggestions
 
 
 def test_suggestions_drop_unrelated_words(service, fake_network):
@@ -261,7 +261,7 @@ def test_completion_uses_the_autocomplete_endpoint(service, fake_network):
 
     fake_network["datamuse.com/sug"] = respond
 
-    assert service.complete_terms("ephem", "en") == ["ephemeral", "ephemera"]
+    assert service.complete_terms("ephem", "en") == ["Ephemeral", "Ephemera"]
     assert seen == ["sug"]
 
 
@@ -275,7 +275,7 @@ def test_completion_keeps_longer_words_that_similarity_would_drop(service, fake_
     """
     fake_network["datamuse.com/sug"] = [{"word": "ephemerality"}]
 
-    assert service.complete_terms("ephem", "en") == ["ephemerality"]
+    assert service.complete_terms("ephem", "en") == ["Ephemerality"]
 
 
 def test_completion_needs_a_few_letters(service, fake_network):
@@ -291,13 +291,75 @@ def test_completion_excludes_the_query_itself(service, fake_network):
     """/sug tam eşleşmeyi de döndürür; yazılan kelimeyi önermenin anlamı yok."""
     fake_network["datamuse.com/sug"] = [{"word": "thug"}, {"word": "thugs"}]
 
-    assert service.complete_terms("thug", "en") == ["thugs"]
+    assert service.complete_terms("thug", "en") == ["Thugs"]
 
 
 def test_non_english_completion_uses_wiktionary(service, fake_network):
     fake_network["api.php"] = ["Hau", ["Haus", "Hause"], [], []]
 
     assert service.complete_terms("Hau", "de") == ["Haus", "Hause"]
+
+
+def test_suggestions_are_capitalized(service, fake_network):
+    """Öneriler baş harfi büyük gösterilir (kullanıcı tercihi)."""
+    _datamuse(fake_network, sl=["receive", "relieve"], sp=[])
+
+    assert service.suggest_terms("recieve", "en") == ["Receive", "Relieve"]
+
+
+def test_capitalizing_keeps_the_rest_of_the_word(service, fake_network):
+    """
+    Yalnızca baş harf büyütülür.
+
+    str.capitalize() kalanı küçültüp "USA" → "Usa" yapardı.
+    """
+    fake_network["datamuse.com/sug"] = [{"word": "iPhone"}, {"word": "USA"}]
+
+    # "USA" olduğu gibi kalmalı; str.capitalize() onu "Usa" yapardı.
+    assert service.complete_terms("ipho", "en") == ["IPhone", "USA"]
+
+
+# ── Dil algılama ──────────────────────────────────────────────────────────
+
+
+def test_detect_language_prefers_english_when_present(service, fake_network):
+    """
+    Çok dilli kelimelerde İngilizce tercih edilir.
+
+    Ölçüldü: Wiktionary "Haus" için ['en', 'bar', 'other', 'de', ...] veriyor —
+    yani tahmin kesin olamaz. İngilizce hem en olası kullanım, hem de telaffuz
+    ve ses veren tek zengin kaynağa (dictionaryapi.dev) bağlanıyor. Arayüz
+    kaydetmeden önce düzeltme imkânı sunuyor.
+    """
+    fake_network["definition"] = {"en": [{}], "de": [{}], "bar": [{}]}
+
+    assert service.detect_language("Haus") == "en"
+
+
+def test_detect_language_picks_the_only_supported_one(service, fake_network):
+    fake_network["definition"] = {"other": [{}], "de": [{}], "li": [{}]}
+
+    assert service.detect_language("gehen") == "de"
+
+
+def test_detect_language_ignores_unsupported_languages(service, fake_network):
+    """Uygulamanın desteklemediği diller aday olmamalı."""
+    fake_network["definition"] = {"ga": [{}], "gd": [{}]}
+
+    assert service.detect_language("thug") == "en"  # desteklenen yok → varsayılan
+
+
+def test_detect_language_falls_back_when_word_is_unknown(service, fake_network):
+    """Wiktionary bulamazsa (ağ hatası dâhil) İngilizce varsayılır."""
+    assert service.detect_language("zzzqqxyz") == "en"
+
+
+def test_detect_language_of_empty_term_makes_no_request(service, fake_network):
+    calls: list = []
+    fake_network["definition"] = lambda params: calls.append(1) or {}
+
+    assert service.detect_language("  ") == "en"
+    assert calls == []
 
 
 def test_suggestion_network_failure_returns_empty(service, fake_network):

@@ -14,7 +14,10 @@ from lexis.ui.widgets.add_word_dialog import AddWordDialog  # noqa: E402
 
 
 @pytest.fixture
-def dialog(qtbot, word_service: WordService) -> AddWordDialog:
+def dialog(qtbot, word_service: WordService, monkeypatch) -> AddWordDialog:
+    # Dil algılama ağa çıkar; testte sahte tutulmazsa arka plan worker'ı
+    # diyalog kapandıktan sonra çalışmaya devam edip süreci çökertiyor.
+    monkeypatch.setattr(word_service, "detect_language", lambda term: "en")
     d = AddWordDialog(word_service)
     qtbot.addWidget(d)
     d.resize(560, 680)
@@ -81,6 +84,97 @@ def test_language_popup_uses_theme_background(dialog, qtbot):
 # ── Hata görünürlüğü ──────────────────────────────────────────────────────
 
 
+# ── Dil algılama ──────────────────────────────────────────────────────────
+
+
+def test_language_is_detected_not_asked(dialog, qtbot, monkeypatch):
+    """Kullanıcıdan dil istenmez: kelimeden algılanıp seçiciye yansıtılır."""
+    monkeypatch.setattr(dialog._service, "detect_language", lambda term: "de")
+    monkeypatch.setattr(dialog._service, "generate_content", lambda t, lang: {"definition": lang})
+
+    dialog._term_input.setText("Haus")
+    dialog._generate_ai_content()
+    qtbot.waitUntil(lambda: dialog._result_widget.isVisible(), timeout=2000)
+
+    assert dialog._lang_combo.currentData() == "de"
+
+
+def test_detected_language_does_not_trigger_regeneration(dialog, qtbot, monkeypatch):
+    """
+    Algılanan dili seçiciye yazmak, "kullanıcı düzeltti" sayılmamalı.
+
+    Sayılsaydı sonsuz yeniden üretim döngüsü olurdu.
+    """
+    monkeypatch.setattr(dialog._service, "detect_language", lambda term: "de")
+    calls: list[str] = []
+    monkeypatch.setattr(
+        dialog._service,
+        "generate_content",
+        lambda t, lang: calls.append(lang) or {"definition": "x"},
+    )
+
+    dialog._term_input.setText("Haus")
+    dialog._generate_ai_content()
+    qtbot.waitUntil(lambda: dialog._result_widget.isVisible(), timeout=2000)
+    qtbot.wait(200)
+
+    assert calls == ["de"]
+
+
+def test_correcting_language_regenerates_content(dialog, qtbot, monkeypatch):
+    """Algılama yanılabilir; düzeltince içerik o dile göre yeniden üretilir."""
+    monkeypatch.setattr(dialog._service, "detect_language", lambda term: "en")
+    calls: list[str] = []
+    monkeypatch.setattr(
+        dialog._service,
+        "generate_content",
+        lambda t, lang: calls.append(lang) or {"definition": "x"},
+    )
+
+    dialog._term_input.setText("Haus")
+    dialog._generate_ai_content()
+    qtbot.waitUntil(lambda: dialog._result_widget.isVisible(), timeout=2000)
+
+    dialog._lang_combo.setCurrentIndex(dialog._lang_combo.findData("de"))
+    qtbot.waitUntil(lambda: calls == ["en", "de"], timeout=2000)
+
+    assert dialog._lang_combo.currentData() == "de"
+
+
+# ── Üretilen içeriğin kilidi ──────────────────────────────────────────────
+
+
+def test_generated_fields_are_read_only_by_default(dialog):
+    """Üretilen içerik kazara değiştirilmemeli."""
+    assert all(f.isReadOnly() for f in dialog._content_fields())
+
+
+def test_edit_button_unlocks_fields(dialog):
+    dialog._edit_btn.setChecked(True)
+    assert all(not f.isReadOnly() for f in dialog._content_fields())
+
+    dialog._edit_btn.setChecked(False)
+    assert all(f.isReadOnly() for f in dialog._content_fields())
+
+
+def test_short_definition_shows_its_beginning(dialog, qtbot, monkeypatch):
+    """
+    Uzun tanımda QLineEdit sona kayıp baş harfi kırpıyordu
+    ("Genellikle..." yerine "enellikle...").
+    """
+    monkeypatch.setattr(dialog._service, "detect_language", lambda term: "en")
+    long_text = "Genellikle dar gelirli ailelerin barındığı, kalabalık ve bakımsız apartman binası."
+    monkeypatch.setattr(
+        dialog._service, "generate_content", lambda t, lang: {"definition_short": long_text}
+    )
+
+    dialog._term_input.setText("tenement")
+    dialog._generate_ai_content()
+    qtbot.waitUntil(lambda: dialog._result_widget.isVisible(), timeout=2000)
+
+    assert dialog._short_def.cursorPosition() == 0
+
+
 # ── Yazarken tamamlama ────────────────────────────────────────────────────
 
 
@@ -121,6 +215,27 @@ def test_stale_completion_does_not_overwrite_newer_one(dialog, qtbot, monkeypatc
     dialog._show_suggestions(["ESKI"], request_id=-1, title="ÖNERİLER")
 
     assert [c.text() for c in dialog._suggestion_chips] == ["eski-sonuc"]
+
+
+def test_repeated_prefix_is_served_from_cache(dialog, qtbot, monkeypatch):
+    """Harf silip yeniden yazmak yaygın; aynı öneki tekrar ağa sormak bekletir."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        dialog._service,
+        "complete_terms",
+        lambda p, lang: calls.append(p) or ["Ephemeral"],
+    )
+
+    dialog._term_input.setText("ephem")
+    qtbot.waitUntil(lambda: bool(dialog._suggestion_chips), timeout=2000)
+
+    dialog._term_input.setText("ephe")  # geri sil
+    qtbot.wait(300)
+    dialog._term_input.setText("ephem")  # aynı öneke dön
+    qtbot.wait(300)
+
+    assert calls.count("ephem") == 1
+    assert [c.text() for c in dialog._suggestion_chips] == ["Ephemeral"]
 
 
 def test_clearing_input_hides_suggestions(dialog, qtbot, monkeypatch):

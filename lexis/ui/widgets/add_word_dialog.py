@@ -33,10 +33,16 @@ from lexis.workers.task_worker import TaskWorker
 
 logger = logging.getLogger(__name__)
 
-# Yazma duraklamasından sonra öneri istemeye kadar beklenen süre. 350 ms:
-# ortalama yazma hızında tuşlar arası boşluğun üstünde (her harfte istek
-# atılmaz) ama kullanıcı beklediğini hissetmeyecek kadar kısa.
-TYPING_DEBOUNCE_MS = 350
+# Yazma duraklamasından sonra öneri istemeye kadar beklenen süre.
+# Datamuse'un kendi gecikmesi ölçüldü: ~220 ms. 350 ms'lik bekleme onun üstüne
+# binince toplam ~600 ms'yi buluyor ve fark ediliyordu. 150 ms, bir tuş
+# vuruşundan kısa olduğu için isteği pratikte "yazar yazmaz" başlatır; istek
+# sayısını da önbellek dengeler.
+TYPING_DEBOUNCE_MS = 150
+
+# Kapanırken arka plan isteğinin bitmesi için beklenecek üst sınır. Ağ zaten
+# 12 sn'de zaman aşımına uğruyor; bu yalnızca kilitlenmeye karşı emniyet.
+WORKER_SHUTDOWN_MS = 3000
 
 
 class AddWordDialog(QDialog):
@@ -58,6 +64,10 @@ class AddWordDialog(QDialog):
         # Geciken bir yanıt, kullanıcı yazmaya devam ettiyse artık eskimiştir.
         # Her istek numaralanır; yalnızca en sonuncunun yanıtı ekrana yazılır.
         self._suggest_request_id = 0
+        # Önek → öneri önbelleği. Harf silip yeniden yazmak çok yaygın; aynı
+        # öneki tekrar ağa sormak gereksiz bir gecikme yaratır.
+        self._completion_cache: dict[tuple[str, str], list[str]] = {}
+        self._detected_language: str | None = None
 
         self._typing_timer = QTimer(self)
         self._typing_timer.setSingleShot(True)
@@ -112,33 +122,17 @@ class AddWordDialog(QDialog):
         form.setContentsMargins(24, 24, 24, 24)
         form.setSpacing(20)
 
-        # ── Word Input + Language ──
-        row1 = QHBoxLayout()
-        row1.setSpacing(12)
-
-        word_col = QVBoxLayout()
-        word_col.setSpacing(6)
-        word_col.addWidget(SectionLabel("KELİME"))
+        # ── Word Input ──
+        # Dil seçici burada değil: kullanıcıdan istemek yerine kelimeden
+        # algılanıp sonuç alanında düzeltmeye açık şekilde gösteriliyor.
+        form.addWidget(SectionLabel("KELİME"))
         self._term_input = QLineEdit()
         self._term_input.setPlaceholderText("örn. ephemeral")
         self._term_input.setMinimumHeight(44)
-        word_col.addWidget(self._term_input)
-        row1.addLayout(word_col, 2)
-
-        lang_col = QVBoxLayout()
-        lang_col.setSpacing(6)
-        lang_col.addWidget(SectionLabel("DİL"))
-        self._lang_combo = QComboBox()
-        self._lang_combo.setMinimumHeight(44)
-        for code, name in SUPPORTED_LANGUAGES.items():
-            self._lang_combo.addItem(name, code)
-        lang_col.addWidget(self._lang_combo)
-        row1.addLayout(lang_col, 1)
-
-        form.addLayout(row1)
+        form.addWidget(self._term_input)
 
         # ── Generate Button ──
-        self._generate_btn = QPushButton("  ✨  İçerik Üret")
+        self._generate_btn = QPushButton("İçerik Üret")
         self._generate_btn.setObjectName("primaryBtn")
         self._generate_btn.setMinimumHeight(44)
         self._generate_btn.setEnabled(False)
@@ -179,6 +173,35 @@ class AddWordDialog(QDialog):
 
         # Separator
         result_layout.addWidget(Divider())
+
+        # ── Algılanan dil + düzenleme kilidi ──
+        # Dil kaydetmeden önce düzeltilebilir: algılama tahmindir, çok dilli
+        # kelimelerde yanılabilir.
+        lang_row = QHBoxLayout()
+        lang_row.setSpacing(12)
+
+        lang_col = QVBoxLayout()
+        lang_col.setSpacing(6)
+        lang_col.addWidget(SectionLabel("DİL"))
+        self._lang_combo = QComboBox()
+        self._lang_combo.setMinimumHeight(40)
+        for code, name in SUPPORTED_LANGUAGES.items():
+            self._lang_combo.addItem(name, code)
+        lang_col.addWidget(self._lang_combo)
+        lang_row.addLayout(lang_col, 1)
+
+        edit_col = QVBoxLayout()
+        edit_col.setSpacing(6)
+        edit_col.addWidget(SectionLabel(" "))  # combo ile aynı hizada dursun
+        self._edit_btn = QPushButton("✎  Düzenle")
+        self._edit_btn.setObjectName("secondaryBtn")
+        self._edit_btn.setMinimumHeight(40)
+        self._edit_btn.setCheckable(True)
+        self._edit_btn.setToolTip("Üretilen içeriği elle değiştir")
+        edit_col.addWidget(self._edit_btn)
+        lang_row.addLayout(edit_col)
+
+        result_layout.addLayout(lang_row)
 
         # Short definition
         result_layout.addWidget(SectionLabel("KISA TANIM"))
@@ -266,6 +289,33 @@ class AddWordDialog(QDialog):
         self._generate_btn.clicked.connect(self._generate_ai_content)
         self._save_btn.clicked.connect(self._save_word)
         self._typing_timer.timeout.connect(self._fetch_completions)
+        self._edit_btn.toggled.connect(self._set_fields_editable)
+        self._lang_combo.currentIndexChanged.connect(self._on_language_corrected)
+        self._set_fields_editable(False)
+
+    # ── Üretilen içeriğin düzenlenmesi ────────────────────────────────────
+
+    def _content_fields(self) -> list[QLineEdit | QTextEdit]:
+        return [
+            self._short_def,
+            self._definition,
+            self._pos_input,
+            self._synonyms_input,
+            self._antonyms_input,
+            self._examples_input,
+            self._usage_notes,
+        ]
+
+    def _set_fields_editable(self, editable: bool) -> None:
+        """
+        Üretilen içerik varsayılan olarak salt-okunur; kazara değiştirilmesin.
+
+        "Düzenle" düğmesi kilidi açar. Kaydettikten sonra kütüphanedeki düzenleme
+        diyaloğu zaten var; buradaki kilit yalnızca kazayı önlüyor.
+        """
+        for field in self._content_fields():
+            field.setReadOnly(not editable)
+        self._edit_btn.setText("✎  Düzenlemeyi bitir" if editable else "✎  Düzenle")
 
     def _on_term_changed(self, text: str) -> None:
         has_text = bool(text.strip())
@@ -277,7 +327,13 @@ class AddWordDialog(QDialog):
         if not has_text:
             self._clear_suggestions()
 
-    def _generate_ai_content(self) -> None:
+    def _generate_ai_content(self, language: str | None = None) -> None:
+        """
+        İçeriği üretir. `language` verilmezse kelimeden algılanır.
+
+        Algılama ve üretim tek worker'da zincirlenir: ikisi de ağ işi, ayrı
+        worker'lara bölmek arayüzü iki kez bekletirdi.
+        """
         term = self._term_input.text().strip()
         if not term:
             return
@@ -287,31 +343,44 @@ class AddWordDialog(QDialog):
         if self._ai_worker is not None and self._ai_worker.isRunning():
             return
 
-        lang_code = self._lang_combo.currentData()
         self._loading.show_loading(
             f"'{term}' için içerik üretiliyor ({self._service.content_source})..."
         )
         self._generate_btn.setEnabled(False)
         self._clear_suggestions()  # önceki denemenin önerileri kalmasın
 
-        self._ai_worker = TaskWorker(
-            lambda: self._service.generate_content(term, lang_code), parent=self
-        )
-        self._ai_worker.succeeded.connect(self._on_ai_finished)
-        self._ai_worker.failed.connect(self._on_ai_error)
-        self._ai_worker.finished.connect(self._clear_worker)
-        self._ai_worker.start()
+        worker = TaskWorker(lambda: self._generate(term, language), parent=self)
+        worker.succeeded.connect(self._on_ai_finished)
+        worker.failed.connect(self._on_ai_error)
+        worker.finished.connect(lambda w=worker: self._release_worker(w))
+        self._ai_worker = worker
+        worker.start()
 
-    def _clear_worker(self) -> None:
-        """Biten worker'ı bırakır; aksi hâlde Qt sahipliği nedeniyle birikirler."""
-        if self._ai_worker is not None:
-            self._ai_worker.deleteLater()
+    def _generate(self, term: str, language: str | None) -> dict:
+        """Arka planda çalışır: dili belirler, içeriği üretir, ikisini döndürür."""
+        lang_code = language or self._service.detect_language(term)
+        data = self._service.generate_content(term, lang_code)
+        return {**data, "_language": lang_code}
+
+    def _release_worker(self, worker: TaskWorker) -> None:
+        """
+        Biten worker'ı bırakır; aksi hâlde Qt sahipliği nedeniyle birikirler.
+
+        Silinecek worker parametreyle gelir, `self._ai_worker`'dan okunmaz: bu
+        arada yeni bir üretim başlamış olabilir (ör. kullanıcı dili düzeltir) ve
+        o durumda biten worker'ın sinyali, çalışmakta olan yenisini siliyordu —
+        Qt "QThread: Destroyed while thread is still running" deyip süreci
+        sonlandırıyordu.
+        """
+        if self._ai_worker is worker:
             self._ai_worker = None
+        worker.deleteLater()
 
     def _on_ai_finished(self, data: dict) -> None:
         self._loading.hide_loading()
         self._ai_data = data
         self._populate_fields(data)
+        self._show_detected_language(data.get("_language", ""))
         was_hidden = not self._result_widget.isVisible()
         self._result_widget.setVisible(True)
         self._save_btn.setEnabled(True)
@@ -319,6 +388,31 @@ class AddWordDialog(QDialog):
         self._set_status("✓ İçerik üretildi", "success")
         if was_hidden:
             fade_in(self._result_widget)
+
+    def _show_detected_language(self, code: str) -> None:
+        """
+        Algılanan dili seçiciye yansıtır.
+
+        Sinyal susturulur: setCurrentIndex aksi hâlde "kullanıcı dili düzeltti"
+        sanılıp sonsuz bir yeniden üretim döngüsü başlatırdı.
+        """
+        index = self._lang_combo.findData(code)
+        if index < 0:
+            return
+        self._detected_language = code
+        self._lang_combo.blockSignals(True)
+        self._lang_combo.setCurrentIndex(index)
+        self._lang_combo.blockSignals(False)
+
+    def _on_language_corrected(self) -> None:
+        """Kullanıcı dili düzeltince içerik o dile göre yeniden üretilir."""
+        code = self._lang_combo.currentData()
+        if not code or code == self._detected_language:
+            return
+        if not self._result_widget.isVisible():
+            return  # henüz üretim yapılmadı
+        self._detected_language = code
+        self._generate_ai_content(language=code)
 
     def _set_status(self, message: str, level: str = "info") -> None:
         """
@@ -343,9 +437,21 @@ class AddWordDialog(QDialog):
     def _fetch_completions(self) -> None:
         """Yazma durunca kelimeyi tamamlar (debounce zamanlayıcısı tetikler)."""
         prefix = self._term_input.text().strip()
+        lang_code = self._lang_combo.currentData() or "en"
+        key = (prefix.casefold(), lang_code)
+
+        cached = self._completion_cache.get(key)
+        if cached is not None:
+            # Önbellekten anında: harf silip yeniden yazmak yaygın, aynı öneki
+            # tekrar ağa sormak boşuna bekletirdi.
+            self._suggest_request_id += 1
+            self._show_suggestions(cached, self._suggest_request_id, "ÖNERİLER")
+            return
+
         self._start_suggest_worker(
             lambda lang: self._service.complete_terms(prefix, lang),
             title="ÖNERİLER",
+            cache_key=key,
         )
 
     def _fetch_suggestions(self) -> None:
@@ -364,7 +470,7 @@ class AddWordDialog(QDialog):
             title="ŞUNU MU DEMEK İSTEDİNİZ?",
         )
 
-    def _start_suggest_worker(self, fetch, title: str) -> None:
+    def _start_suggest_worker(self, fetch, title: str, cache_key: tuple | None = None) -> None:
         """
         Öneri aramasını arka planda başlatır.
 
@@ -374,15 +480,26 @@ class AddWordDialog(QDialog):
         """
         self._suggest_request_id += 1
         request_id = self._suggest_request_id
-        lang_code = self._lang_combo.currentData()
+        lang_code = self._lang_combo.currentData() or "en"
+
+        def done(words: list[str]) -> None:
+            if cache_key is not None:
+                self._completion_cache[cache_key] = words
+            self._show_suggestions(words, request_id, title)
 
         worker = TaskWorker(lambda: fetch(lang_code), parent=self)
-        worker.succeeded.connect(lambda words: self._show_suggestions(words, request_id, title))
+        worker.succeeded.connect(done)
         # Öneri bir kolaylık: bulunamazsa kullanıcıyı ikinci bir hatayla yorma.
         worker.failed.connect(lambda msg: logger.info("Öneri alınamadı: %s", msg))
-        worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(lambda w=worker: self._release_suggest_worker(w))
         self._suggest_worker = worker
         worker.start()
+
+    def _release_suggest_worker(self, worker: TaskWorker) -> None:
+        """Biten öneri worker'ını bırakır (bkz. _release_worker: kimlik kontrolü)."""
+        if self._suggest_worker is worker:
+            self._suggest_worker = None
+        worker.deleteLater()
 
     def _show_suggestions(self, words: list[str], request_id: int, title: str) -> None:
         if request_id != self._suggest_request_id:
@@ -415,11 +532,17 @@ class AddWordDialog(QDialog):
     def _use_suggestion(self, word: str) -> None:
         """Öneriye tıklayınca kelimeyi değiştirip yeniden üretir."""
         self._term_input.setText(word)
+        # setText yazma zamanlayıcısını tetikler; durdurulmazsa seçilen kelime
+        # için hemen yeni tamamlamalar listelenip öneriler geri gelirdi.
+        self._typing_timer.stop()
         self._clear_suggestions()
         self._generate_ai_content()
 
     def _populate_fields(self, data: dict) -> None:
         self._short_def.setText(data.get("definition_short", ""))
+        # Uzun tanım alana sığmayınca QLineEdit sonuna kayıp baş harfi
+        # kırpıyordu ("Genellikle..." → "enellikle...").
+        self._short_def.setCursorPosition(0)
         self._definition.setPlainText(data.get("definition", ""))
         self._pos_input.setText(data.get("part_of_speech", ""))
         self._synonyms_input.setText(", ".join(data.get("synonyms", [])))
@@ -462,3 +585,17 @@ class AddWordDialog(QDialog):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._loading.resize(self.size())
+
+    def closeEvent(self, event) -> None:
+        """
+        Kapanmadan önce arka plan işlerinin bitmesini bekler.
+
+        Çalışan bir QThread'in nesnesi yok edilirse Qt "QThread: Destroyed while
+        thread is still running" deyip süreci sonlandırıyor. Kullanıcı içerik
+        üretilirken diyaloğu kapattığında tam olarak bu oluyordu.
+        """
+        self._typing_timer.stop()
+        for worker in (self._ai_worker, self._suggest_worker):
+            if worker is not None and worker.isRunning():
+                worker.wait(WORKER_SHUTDOWN_MS)
+        super().closeEvent(event)

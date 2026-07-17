@@ -173,6 +173,39 @@ def _service_with(monkeypatch, side_effects: list) -> AIService:
     return service
 
 
+# ── "Bulunamadı" (found=False) ──────────────────────────────────────────
+
+
+def test_word_data_defaults_to_found():
+    """found alanı olmadan gelen (eski) yanıtlar geriye dönük uyumlu kalmalı."""
+    assert WordData().found is True
+
+
+def test_not_found_raises_instead_of_returning_guessed_content(monkeypatch):
+    """
+    Model kelimeyi tanımadığını söylerse (found=False) hata fırlatılmalı.
+
+    Modelin sessizce en yakın bildiği kelimeye kayıp yanlış içerik üretmesi
+    yerine (ör. "Baran" → "barren"), kullanıcı "bulunamadı" görmeli.
+    """
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    service = _service_with(monkeypatch, [_FakeResponse(parsed=WordData(found=False))])
+
+    with pytest.raises(AIServiceError, match="Baran"):
+        service.generate_word_data("Baran", "en")
+
+
+def test_not_found_error_is_not_retried(monkeypatch):
+    """'Bulunamadı' geçici bir hata değil; yeniden denemek anlamsız."""
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    service = _service_with(monkeypatch, [_FakeResponse(parsed=WordData(found=False))])
+
+    with pytest.raises(AIServiceError):
+        service.generate_word_data("Baran", "en")
+
+    assert service._calls["n"] == 1
+
+
 def test_retries_transient_error_then_succeeds(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _s: None)  # testi bekletme
     service = _service_with(

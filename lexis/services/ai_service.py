@@ -64,14 +64,22 @@ class ExampleSentence(BaseModel):
 
 
 class WordData(BaseModel):
-    """Gemini'nin bir kelime için üreteceği yapısal içerik."""
+    """
+    Gemini'nin bir kelime için üreteceği yapısal içerik.
 
-    definition: str
-    definition_short: str
-    part_of_speech: str
-    synonyms: list[str]
-    antonyms: list[str]
-    example_sentences: list[ExampleSentence]
+    `found` dışındaki alanlar opsiyonel: model kelimeyi tanımadığında
+    (found=False) bir şeyler uydurmak yerine boş bırakabilmeli. Bu alan
+    olmadan model, tüm alanları doldurma zorunluluğu altında tanımadığı bir
+    kelimeyi en yakın bildiği kelimeyle karıştırıyordu (ör. "Baran" → "barren").
+    """
+
+    found: bool = True
+    definition: str = ""
+    definition_short: str = ""
+    part_of_speech: str = ""
+    synonyms: list[str] = []
+    antonyms: list[str] = []
+    example_sentences: list[ExampleSentence] = []
     usage_notes: str = ""
 
 
@@ -81,7 +89,12 @@ def _build_prompt(term: str, language: str) -> str:
 
 Verilen kelime: "{term}" ({lang_name})
 
-Lütfen aşağıdaki bilgileri üret:
+ÖNEMLİ: "{term}" {lang_name} dilinde senin bildiğin gerçek bir kelime DEĞİLSE
+(yazım hatası dışında bambaşka, uydurma ya da bir özel isimse), onu asla en
+yakın bildiğin kelimeyle karıştırma. Bu durumda found: false döndür ve diğer
+alanları boş bırak. Yalnızca kelimenin kendisinden eminsen found: true ver.
+
+Kelime gerçekse aşağıdaki bilgileri üret:
 
 1. definition: Kelimenin ayrıntılı Türkçe tanımı (2-4 cümle).
 2. definition_short: Tek cümlelik kısa Türkçe tanım.
@@ -231,6 +244,13 @@ class AIService:
                 data = parsed
             else:
                 data = WordData.model_validate(json.loads(response.text))
+
+            if not data.found:
+                lang_name = SUPPORTED_LANGUAGES.get(language, language)
+                raise AIServiceError(
+                    f"'{term}' için {lang_name} dilinde bir sözlük kaydı bulunamadı. "
+                    "Yazımı kontrol edin ya da farklı bir kelime deneyin."
+                )
 
             return {
                 "definition": data.definition,

@@ -27,6 +27,7 @@ from html.parser import HTMLParser
 from itertools import zip_longest
 
 from lexis.domain.exceptions import ContentProviderError
+from lexis.domain.models import SUPPORTED_LANGUAGES
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +251,16 @@ def _datamuse_words(param: str, term: str) -> list[str]:
     return [d["word"] for d in data if isinstance(d, dict) and d.get("word")]
 
 
+def _capitalize(word: str) -> str:
+    """
+    Baş harfi büyütür, gerisine dokunmaz.
+
+    str.capitalize() kullanılmaz: o, kelimenin kalanını küçültüp "USA" → "Usa"
+    gibi kısaltmaları bozar.
+    """
+    return word[:1].upper() + word[1:]
+
+
 def _interleave(primary: list[str], secondary: list[str]) -> list[str]:
     """
     İki listeyi sıralarını koruyarak dönüşümlü birleştirir.
@@ -331,7 +342,7 @@ def _dedupe_excluding_query(term: str, candidates: list[str]) -> list[str]:
         if not c_key or c_key == key or c_key in seen:
             continue
         seen.add(c_key)
-        out.append(candidate.strip())
+        out.append(_capitalize(candidate.strip()))
         if len(out) >= MAX_SUGGESTIONS:
             break
 
@@ -360,7 +371,7 @@ def _filter_suggestions(term: str, candidates: list[str]) -> list[str]:
             continue
         seen.add(c_key)
         if difflib.SequenceMatcher(None, key, c_key).ratio() >= MIN_SIMILARITY:
-            out.append(candidate.strip())
+            out.append(_capitalize(candidate.strip()))
         if len(out) >= MAX_SUGGESTIONS:
             break
 
@@ -409,6 +420,35 @@ class OpenDictionaryService:
     def is_configured(self) -> bool:
         """Yapılandırma gerektirmez: her zaman kullanılabilir."""
         return True
+
+    def detect_language(self, term: str) -> str:
+        """
+        Kelimenin hangi dile ait olduğunu tahmin eder.
+
+        Wiktionary tek bir sorguda kelimenin geçtiği tüm dilleri döndürür.
+        Tahmin kesin değil ve olamaz: çok dilli kelimeler yaygın (ölçüldü —
+        "Haus" için yanıt ['en', 'bar', 'other', 'de', ...], yani Almanca'nın
+        yanında İngilizce de var). Bu yüzden arayüz sonucu düzeltme imkânı sunar.
+
+        İngilizce öncelikli: hem en olası kullanım, hem de yalnızca İngilizce'de
+        telaffuz ve ses veren zengin kaynağa (dictionaryapi.dev) bağlanıyor.
+        Bulunamazsa yine İngilizce'ye düşülür.
+        """
+        term = term.strip()
+        if not term:
+            return RICH_LANGUAGE
+
+        data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(term)))
+        if not isinstance(data, dict):
+            return RICH_LANGUAGE
+
+        found = [code for code in data if code in SUPPORTED_LANGUAGES]
+        if not found:
+            return RICH_LANGUAGE
+
+        detected = RICH_LANGUAGE if RICH_LANGUAGE in found else found[0]
+        logger.info("'%s' için dil tahmini: %s (adaylar: %s)", term, detected, found)
+        return detected
 
     def suggest_terms(self, term: str, language: str = "en") -> list[str]:
         """
