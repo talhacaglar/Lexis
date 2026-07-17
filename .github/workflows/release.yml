@@ -1,0 +1,60 @@
+name: Release
+
+# Sürüm etiketi atıldığında AppImage üretip Release'e ekler.
+# Eskiden paketleme tamamen elle yapılıyordu.
+on:
+  push:
+    tags: ["v*"]
+  # Etiket atmadan denemek için elle de tetiklenebilir.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Sistem bağımlılıkları
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 libgl1 libxkbcommon0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
+            libfuse2
+
+      - name: Bağımlılıkları kur
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller
+
+      - name: AppImage derle
+        # appimagetool FUSE olmadan çalışsın (CI konteynerinde FUSE yok).
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          chmod +x packaging/build_appimage.sh
+          ./packaging/build_appimage.sh
+
+      - name: AppImage'i iş akışı çıktısı olarak sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: lexis-appimage
+          path: lexis-x86_64.AppImage
+          if-no-files-found: error
+
+      - name: Release'e ekle
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: lexis-x86_64.AppImage
+          generate_release_notes: true

@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     env:
       # PyQt6 testlerini başsız (headless) çalıştır.
@@ -42,5 +42,20 @@ jobs:
       - name: Lint (ruff)
         run: ruff check lexis/ tests/
 
-      - name: Testler (pytest)
-        run: pytest -q
+      # NOT: `ruff format --check` henüz eklenmedi. Eklemek için önce
+      # `ruff format lexis/ tests/` bir kez çalıştırılmalı (52 dosyanın 31'ini
+      # yeniden biçimlendirir); o biçimlendirme kendi commit'inde yapılmalı ki
+      # bu değişikliklerin diff'ine karışmasın.
+
+      - name: Testler + kapsam
+        run: pytest -q --cov=lexis --cov-report=term
+
+      - name: Kapsam özetini iş akışına yaz
+        if: always()
+        run: |
+          {
+            echo "### Test kapsamı (Python ${{ matrix.python-version }})"
+            echo '```'
+            coverage report || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

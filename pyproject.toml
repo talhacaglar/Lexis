@@ -20,6 +20,7 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-qt>=4.2.0",
+    "pytest-cov>=4.0.0",
     "ruff>=0.4.0",
 ]
 
@@ -35,6 +36,24 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["lexis"]
+# Bu dosyalar yalnızca uygulama başlatma kodu; testte anlamlı biçimde
+# çalıştırılamıyorlar.
+omit = ["lexis/main.py", "lexis/ui/app.py"]
+
+[tool.coverage.report]
+# Ölçülen kapsam %84.7; eşik biraz altında tutuldu: gerileme yakalanır ama
+# küçük dalgalanmalarda CI kırılmaz.
+fail_under = 82
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
 
 [tool.ruff]
 target-version = "py310"

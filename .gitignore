@@ -9,6 +9,12 @@ dist/
 .ruff_cache/
 .mypy_cache/
 
+# Test kapsamı çıktıları
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Virtual env
 .venv/
 venv/

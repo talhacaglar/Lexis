@@ -2,28 +2,35 @@
 # build_appimage.sh - Lexis AppImage oluşturma scripti
 # Kullanım: ./packaging/build_appimage.sh
 
-set -e
+# -u: tanımsız değişken hata versin, pipefail: pipe içindeki hata yutulmasın.
+set -euo pipefail
 
 APP_NAME="lexis"
 APP_DIR="AppDir"
 DIST_DIR="dist"
 
+# appimagetool sabit bir sürüme pinlenir: "continuous" her indirmede değişebilir
+# ve derlemeyi tekrarlanabilir olmaktan çıkarır.
+APPIMAGETOOL_VERSION="${APPIMAGETOOL_VERSION:-1.9.0}"
+APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+
 echo "🚀 $APP_NAME AppImage derlemesi başlıyor..."
 
-# 1. Gerekli araçları kontrol et
-if ! command -v appimagetool &> /dev/null; then
-    echo "⚠️ appimagetool bulunamadı! İndiriliyor..."
-    wget "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+# 1. Gerekli araçları hazırla
+if command -v appimagetool &> /dev/null; then
+    APPIMAGETOOL="appimagetool"
+else
+    echo "⚠️ appimagetool bulunamadı, indiriliyor (sürüm $APPIMAGETOOL_VERSION)..."
+    curl -fsSL "$APPIMAGETOOL_URL" -o appimagetool
     chmod +x appimagetool
     APPIMAGETOOL="./appimagetool"
-else
-    APPIMAGETOOL="appimagetool"
 fi
 
 if ! command -v pyinstaller &> /dev/null; then
-    echo "❌ pyinstaller bulunamadı. Lütfen sanal ortamı aktif edin veya pyinstaller'ı kurun:"
-    echo "   pip install pyinstaller"
-    exit 1
+    # Hata vermek yerine kur: AUR PKGBUILD zaten böyle yapıyor, script de
+    # CI'da elle hazırlık gerektirmeden çalışsın.
+    echo "📥 pyinstaller bulunamadı, kuruluyor..."
+    python -m pip install --quiet pyinstaller
 fi
 
 # 2. Önceki build loglarını temizle

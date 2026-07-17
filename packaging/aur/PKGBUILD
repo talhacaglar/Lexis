@@ -1,10 +1,10 @@
-# Maintainer: Adınız <email@adresiniz.com>
+# Maintainer: Talha Çağlar <talhacaglar93@gmail.com>
 pkgname=lexis-git
 pkgver=r1.gf406063
 pkgrel=1
 pkgdesc="Yabancı dil öğrenenler için yapay zeka destekli, modern masaüstü sözlük uygulaması"
 arch=('x86_64' 'aarch64')
-url="https://github.com/talhacaglar/Lexis"
+url="https://github.com/talhacaglar/lexis"
 license=('MIT')
 depends=('glibc' 'zlib' 'libx11' 'libxcb' 'libxkbcommon' 'fontconfig' 'freetype2' 'dbus')
 makedepends=('git' 'python' 'python-pip' 'python-setuptools')
