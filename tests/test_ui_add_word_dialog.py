@@ -8,6 +8,7 @@ pytest.importorskip("PyQt6.QtWidgets")
 
 from PyQt6.QtWidgets import QScrollArea, QStyleFactory  # noqa: E402
 
+from lexis.domain.exceptions import ContentProviderError  # noqa: E402
 from lexis.services.word_service import WordService  # noqa: E402
 from lexis.ui.theme import Colors  # noqa: E402
 from lexis.ui.widgets.add_word_dialog import AddWordDialog  # noqa: E402
@@ -139,6 +140,39 @@ def test_correcting_language_regenerates_content(dialog, qtbot, monkeypatch):
     qtbot.waitUntil(lambda: calls == ["en", "de"], timeout=2000)
 
     assert dialog._lang_combo.currentData() == "de"
+
+
+def test_error_shows_the_attempted_language_not_a_stale_one(dialog, qtbot, monkeypatch):
+    """
+    Regresyon (ekran görüntüsündeki hata): "Tahanan" için "İngilizce'de yok"
+    hatası gösterilirken seçici, önceki kelimeden kalan dili ("Arapça")
+    gösteriyordu; öneriler de o yanlış dilde aranıyordu.
+    """
+    monkeypatch.setattr(dialog._service, "complete_terms", lambda p, lang: [])
+    monkeypatch.setattr(dialog._service, "suggest_terms", lambda term, lang: [])
+
+    # 1) Önce bir kelime "de" olarak başarıyla üretilir.
+    monkeypatch.setattr(dialog._service, "detect_languages", lambda term: ["de"])
+    monkeypatch.setattr(dialog._service, "generate_content", lambda t, lang: {"definition": "x"})
+
+    dialog._term_input.setText("Haus")
+    dialog._generate_ai_content()
+    qtbot.waitUntil(lambda: dialog._lang_combo.currentData() == "de", timeout=2000)
+
+    # 2) Sonra yalnızca İngilizce aday gösterilen başka bir kelime hata verir.
+    monkeypatch.setattr(dialog._service, "detect_languages", lambda term: ["en"])
+
+    def not_found(t, lang):
+        raise ContentProviderError(f"'{t}' bulunamadı.")
+
+    monkeypatch.setattr(dialog._service, "generate_content", not_found)
+
+    dialog._term_input.setText("Tahanan")
+    dialog._generate_ai_content()
+    qtbot.waitUntil(lambda: "bulunamadı" in dialog._status_label.text(), timeout=2000)
+
+    # Seçici bu turda denenen dili göstermeli, bayat "de"yi değil.
+    assert dialog._lang_combo.currentData() == "en"
 
 
 # ── Üretilen içeriğin kilidi ──────────────────────────────────────────────

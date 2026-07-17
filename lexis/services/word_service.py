@@ -10,12 +10,18 @@ from __future__ import annotations
 import logging
 
 from lexis.domain.exceptions import ContentProviderError, DuplicateWordError
-from lexis.domain.models import ReviewGrade, Word, WordStats, WordStatus
+from lexis.domain.models import SUPPORTED_LANGUAGES, ReviewGrade, Word, WordStats, WordStatus
 from lexis.persistence.word_repository import WordRepository
 from lexis.services.ai_service import AIService
 from lexis.services.open_dictionary import OpenDictionaryService
 
 logger = logging.getLogger(__name__)
+
+# Otomatik dil denemesinde Gemini için üst sınır. Açık sözlükte adaylar
+# sınırsız denenir (sayfa önbelleği sayesinde ek aday ek ağ maliyeti
+# getirmiyor); Gemini'de ise her aday ayrı bir ücretli istek ve birkaç saniye —
+# sınırsız aday, bulunamayan kelimede kullanıcıyı dakikalarca bekletirdi.
+MAX_AI_LANGUAGE_ATTEMPTS = 3
 
 
 class WordService:
@@ -241,17 +247,27 @@ class WordService:
             ContentProviderError: Hiçbir adayda kayıt bulunamazsa.
         """
         candidates = self.detect_languages(term)
+        if self._ai.is_configured:
+            candidates = candidates[:MAX_AI_LANGUAGE_ATTEMPTS]
+
         last_error: ContentProviderError | None = None
+        tried: list[str] = []
 
         for language in candidates:
             try:
                 return self.generate_content(term, language), language
             except ContentProviderError as e:
                 logger.info("'%s' %s dilinde bulunamadı, sonraki aday", term, language)
+                tried.append(SUPPORTED_LANGUAGES.get(language, language))
                 last_error = e
 
         if last_error is not None:
-            raise last_error
+            # Yalnızca son adayın hatası değil: kullanıcı hangi dillerin
+            # denendiğini görmeli, yoksa "İngilizce'de yok" mesajı diğer
+            # dillerin hiç denenmediği izlenimini veriyordu.
+            raise ContentProviderError(
+                f"'{term}' denenen dillerin hiçbirinde ({', '.join(tried)}) bulunamadı."
+            )
         raise ContentProviderError(f"'{term}' için sözlük kaydı bulunamadı.")
 
     def regenerate_ai_content(self, word_id: str) -> Word:

@@ -343,11 +343,53 @@ def test_detect_languages_puts_english_first(service, fake_network):
     assert service.detect_languages("baran")[0] == "en"
 
 
-def test_detect_languages_is_capped(service, fake_network):
-    """Her aday bir ağ isteği; sınırsız aday kullanıcıyı dakikalarca bekletirdi."""
+def test_detect_languages_is_not_capped(service, fake_network):
+    """
+    Adaylar kesilmez ("her dil için sorgulasın"): sayfa önbelleği sayesinde ek
+    aday ek ağ isteği getirmiyor. Gemini'nin ücretli denemelerini WordService
+    kendi sınırıyla korur.
+    """
     fake_network["definition"] = dict.fromkeys(["en", "de", "fr", "es", "it", "pl"], [{}])
 
-    assert len(service.detect_languages("word")) == od.MAX_LANGUAGE_CANDIDATES
+    assert service.detect_languages("word") == ["en", "de", "fr", "es", "it", "pl"]
+
+
+def test_detect_languages_retries_lowercase_when_exact_case_misses(service, fake_network):
+    """
+    Wiktionary büyük/küçük harfe duyarlı: "Tahanan" 404 verirken "tahanan"
+    bulunuyor. Küçük harf denenmezse kullanıcı haksız "bulunamadı" görüyordu.
+    """
+    fake_network["definition/tahanan"] = {"de": [{}], "pl": [{}]}
+
+    assert service.detect_languages("Tahanan") == ["de", "pl"]
+
+
+def test_lowercase_term_is_not_fetched_twice(service, fake_network):
+    """Zaten küçük harfli terimde ikinci bir deneme anlamsız."""
+    calls: list = []
+    fake_network["definition"] = lambda params: calls.append(1) or None
+
+    service.detect_languages("tahanan")
+
+    assert calls == [1]
+
+
+def test_wiktionary_page_is_fetched_once_across_detection_and_generation(service, fake_network):
+    """
+    Dil algılama ve aday dillerdeki üretim aynı Wiktionary sayfasını kullanır.
+
+    Önbellek olmadan her aday dil için sayfa yeniden çekiliyordu; aday sayısı
+    kadar gereksiz ağ gecikmesi birikiyordu.
+    """
+    calls: list = []
+    fake_network["definition"] = lambda params: calls.append(1) or WIKTIONARY_RESPONSE
+    fake_network["mymemory"] = None
+
+    candidates = service.detect_languages("Haus")
+    service.generate_word_data("Haus", "de")
+
+    assert candidates == ["en", "de"]
+    assert calls == [1]
 
 
 def test_detect_language_prefers_english_when_present(service, fake_network):

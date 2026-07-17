@@ -56,10 +56,6 @@ SUGGESTION_POOL = 15
 # eşleştirip gürültü üretir.
 MIN_COMPLETION_CHARS = 3
 
-# Kelime birden çok dilde geçiyorsa en fazla bu kadarı denenir. Her deneme ayrı
-# bir ağ isteği (Gemini'de birkaç saniye); sınırsız aday, bulunamayan kelimede
-# kullanıcıyı dakikalarca bekletirdi.
-MAX_LANGUAGE_CANDIDATES = 3
 # Benzerlik eşiği: altındakiler yazım hatası değil, alakasız kelimelerdir.
 # Ölçüldü: 0.6 "seperate→separate" (0.88) ve "Hause→house" (0.80) gibi gerçek
 # düzeltmeleri geçirirken alakasızları eler.
@@ -182,33 +178,6 @@ def _fetch_english(term: str) -> dict:
         "phonetic": phonetic,
         "audio_url": audio_url,
     }
-
-
-def _fetch_wiktionary(term: str, language: str) -> dict:
-    """
-    Wiktionary'den verilen dildeki tanımları çeker.
-
-    Yanıt dil koduna göre gruplanmıştır; yalnızca istenen dilin bölümü alınır.
-    """
-    data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(term)))
-    if not isinstance(data, dict):
-        return {}
-
-    entries = data.get(language)
-    if not entries:
-        return {}
-
-    definitions: list[str] = []
-    part_of_speech = ""
-    for entry in entries:
-        if not part_of_speech:
-            part_of_speech = entry.get("partOfSpeech", "")
-        for d in entry.get("definitions", []):
-            text = _strip_html(d.get("definition", ""))
-            if text:
-                definitions.append(text)
-
-    return {"definitions": definitions, "part_of_speech": part_of_speech}
 
 
 def _fetch_examples(term: str, language: str) -> list[str]:
@@ -421,10 +390,61 @@ class OpenDictionaryService:
     AIService ile aynı arayüzü sunar; WordService ikisini ayırt etmeden çağırır.
     """
 
+    def __init__(self) -> None:
+        # Aynı terimin Wiktionary sayfası hem dil algılamada hem her aday dilin
+        # üretim denemesinde gerekiyor; sayfayı her seferinde yeniden çekmek,
+        # aday sayısı kadar gereksiz ağ gecikmesi ekliyordu. Örnek düzeyinde
+        # tutulur: WordService oturum boyu tek örnek kullandığı için paylaşım
+        # sağlanır, testlerdeki taze örnekler ise birbirine sızmaz.
+        self._page_cache: dict[str, dict | None] = {}
+
     @property
     def is_configured(self) -> bool:
         """Yapılandırma gerektirmez: her zaman kullanılabilir."""
         return True
+
+    def _fetch_page(self, term: str) -> dict | None:
+        """
+        Terimin Wiktionary sayfasını çeker; önce yazıldığı gibi, olmazsa küçük
+        harfle. Wiktionary büyük/küçük harfe duyarlı: "Tahanan" 404 verirken
+        "tahanan" bulunuyor — kullanıcı bu yüzden haksız "bulunamadı" görüyordu.
+        """
+        if term in self._page_cache:
+            return self._page_cache[term]
+
+        data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(term)))
+        if not isinstance(data, dict) and term.lower() != term:
+            data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(term.lower())))
+
+        result = data if isinstance(data, dict) else None
+        self._page_cache[term] = result
+        return result
+
+    def _fetch_wiktionary(self, term: str, language: str) -> dict:
+        """
+        Wiktionary'den verilen dildeki tanımları çeker.
+
+        Yanıt dil koduna göre gruplanmıştır; yalnızca istenen dilin bölümü alınır.
+        """
+        data = self._fetch_page(term)
+        if data is None:
+            return {}
+
+        entries = data.get(language)
+        if not entries:
+            return {}
+
+        definitions: list[str] = []
+        part_of_speech = ""
+        for entry in entries:
+            if not part_of_speech:
+                part_of_speech = entry.get("partOfSpeech", "")
+            for d in entry.get("definitions", []):
+                text = _strip_html(d.get("definition", ""))
+                if text:
+                    definitions.append(text)
+
+        return {"definitions": definitions, "part_of_speech": part_of_speech}
 
     def detect_languages(self, term: str) -> list[str]:
         """
@@ -443,19 +463,20 @@ class OpenDictionaryService:
         if not term:
             return [RICH_LANGUAGE]
 
-        data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(term)))
-        if not isinstance(data, dict):
+        data = self._fetch_page(term)
+        if data is None:
             return [RICH_LANGUAGE]
 
         found = [code for code in data if code in SUPPORTED_LANGUAGES]
         if not found:
             return [RICH_LANGUAGE]
 
-        # İngilizce öne; gerisi Wiktionary'nin kendi sırasında kalır.
+        # İngilizce öne; gerisi Wiktionary'nin kendi sırasında kalır. Kasıtlı
+        # olarak kesilmez: sayfa önbelleği sayesinde ek aday ek ağ maliyeti
+        # getirmiyor (Gemini'nin ücretli denemelerini WordService sınırlar).
         found.sort(key=lambda code: code != RICH_LANGUAGE)
-        candidates = found[:MAX_LANGUAGE_CANDIDATES]
-        logger.info("'%s' için dil adayları: %s", term, candidates)
-        return candidates
+        logger.info("'%s' için dil adayları: %s", term, found)
+        return found
 
     def detect_language(self, term: str) -> str:
         """En olası tek dili döndürür (bkz. detect_languages)."""
@@ -517,9 +538,9 @@ class OpenDictionaryService:
             if not base.get("definitions"):
                 # dictionaryapi.dev argo/az bilinen kelimelerde (örn. "yeet",
                 # "rizz") sık sık 404 veriyor; Wiktionary bunları çoğunlukla içerir.
-                base = _fetch_wiktionary(term, RICH_LANGUAGE)
+                base = self._fetch_wiktionary(term, RICH_LANGUAGE)
         else:
-            base = _fetch_wiktionary(term, language)
+            base = self._fetch_wiktionary(term, language)
 
         definitions = base.get("definitions") or []
         if not definitions:

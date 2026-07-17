@@ -68,6 +68,9 @@ class AddWordDialog(QDialog):
         # öneki tekrar ağa sormak gereksiz bir gecikme yaratır.
         self._completion_cache: dict[tuple[str, str], list[str]] = {}
         self._detected_language: str | None = None
+        # Son üretim turunda denenen diller; hata yolunda seçiciyi güncellemek
+        # için tutulur (başarı yolunda dil zaten yanıtla birlikte gelir).
+        self._last_attempted_languages: list[str] = []
 
         self._typing_timer = QTimer(self)
         self._typing_timer.setSingleShot(True)
@@ -357,10 +360,19 @@ class AddWordDialog(QDialog):
         worker.start()
 
     def _generate(self, term: str, language: str | None) -> dict:
-        """Arka planda çalışır: dili belirler, içeriği üretir, ikisini döndürür."""
+        """
+        Arka planda çalışır: dili belirler, içeriği üretir, ikisini döndürür.
+
+        Denenen diller üretimden ÖNCE kaydedilir: üretim hata verirse de dil
+        seçici bu turun diline ayarlanabilmeli (bkz. _show_attempted_language).
+        Algılamayı tekrarlamak ek ağ maliyeti getirmez: generate_auto içindeki
+        ikinci detect_languages çağrısı sayfa önbelleğinden karşılanır.
+        """
         if language:
+            self._last_attempted_languages = [language]
             return {**self._service.generate_content(term, language), "_language": language}
         # Dil verilmediyse servis adayları sırayla dener ve tutanı bildirir.
+        self._last_attempted_languages = self._service.detect_languages(term)
         data, detected = self._service.generate_auto(term)
         return {**data, "_language": detected}
 
@@ -428,11 +440,25 @@ class AddWordDialog(QDialog):
     def _on_ai_error(self, message: str) -> None:
         self._loading.hide_loading()
         self._generate_btn.setEnabled(True)
-        self._set_status(f"Hata: {message}", "error")
+        self._set_status(message, "error")
         # Hata olsa bile kaydetmeye izin ver (boş veriyle)
         self._result_widget.setVisible(True)
         self._save_btn.setEnabled(True)
+        # Öneri aramasından önce: arama, seçicideki dili kullanıyor.
+        self._show_attempted_language()
         self._fetch_suggestions()
+
+    def _show_attempted_language(self) -> None:
+        """
+        Hata sonrası seçiciyi bu turda denenen dile ayarlar.
+
+        Ayarlanmazsa önceki (farklı) kelimenin başarıyla algılanan dili ekranda
+        asılı kalıyordu: "Tahanan" için "İngilizce'de yok" hatası gösterilirken
+        seçici bir önceki denemeden kalan "Arapça"yı gösteriyor, öneriler de o
+        yanlış dilde aranıyordu.
+        """
+        if self._last_attempted_languages:
+            self._show_detected_language(self._last_attempted_languages[0])
 
     # ── Öneriler: yazarken tamamlama, hatadan sonra düzeltme ──────────────
 

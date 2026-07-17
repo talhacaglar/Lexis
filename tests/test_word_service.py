@@ -6,7 +6,7 @@ import pytest
 
 from lexis.domain.exceptions import ContentProviderError, DuplicateWordError
 from lexis.domain.models import WordStatus
-from lexis.services.word_service import WordService
+from lexis.services.word_service import MAX_AI_LANGUAGE_ATTEMPTS, WordService
 
 
 class TestWordServiceAdd:
@@ -158,6 +158,64 @@ class TestContentProviderSelection:
 
         with pytest.raises(ContentProviderError):
             service.generate_auto("zzzqqxyz")
+
+    def test_auto_error_names_every_tried_language(self, repo, ai_service):
+        """
+        Hata mesajı yalnızca son adayın dilini değil, denenen tüm dilleri saymalı.
+
+        "İngilizce'de yok" mesajı diğer dillerin hiç denenmediği izlenimini
+        veriyordu; kullanıcı da haklı olarak "Almanca olabilir mi? Rusça
+        olabilir mi?" diye soruyordu.
+        """
+        provider = _LanguageAwareProvider(known={})
+        service = WordService(repo, ai_service, open_dictionary=provider)
+        provider.candidates = ["en", "pl"]
+
+        with pytest.raises(ContentProviderError) as exc:
+            service.generate_auto("Baran")
+
+        assert "İngilizce" in str(exc.value)
+        assert "Lehçe" in str(exc.value)
+
+    def test_auto_tries_every_candidate_without_gemini(self, repo, ai_service):
+        """
+        Anahtarsız modda adaylar kesilmez ("her dil için sorgulasın").
+
+        Açık sözlükte ek aday ek ağ maliyeti getirmiyor: Wiktionary sayfası
+        önbellekten paylaşılıyor.
+        """
+        provider = _LanguageAwareProvider(known={"sv": "tak"})
+        service = WordService(repo, ai_service, open_dictionary=provider)
+        provider.candidates = ["en", "de", "fr", "es", "sv"]
+
+        _data, language = service.generate_auto("tak")
+
+        assert language == "sv"
+        assert len(provider.calls) == 5
+
+    def test_auto_caps_attempts_when_gemini_is_configured(self, repo, ai_service, monkeypatch):
+        """
+        Gemini'de her aday ayrı bir ücretli istek (birkaç saniye); sınırsız
+        aday, bulunamayan kelimede kullanıcıyı dakikalarca bekletir ve kotayı
+        tüketirdi.
+        """
+        provider = _LanguageAwareProvider(known={})
+        service = WordService(repo, ai_service, open_dictionary=provider)
+        provider.candidates = ["en", "de", "fr", "es", "it"]
+
+        monkeypatch.setattr(type(ai_service), "is_configured", property(lambda _: True))
+        ai_calls: list[str] = []
+
+        def ai_not_found(term, language):
+            ai_calls.append(language)
+            raise ContentProviderError(f"'{term}' {language} dilinde yok.")
+
+        monkeypatch.setattr(ai_service, "generate_word_data", ai_not_found)
+
+        with pytest.raises(ContentProviderError):
+            service.generate_auto("Baran")
+
+        assert ai_calls == provider.candidates[:MAX_AI_LANGUAGE_ATTEMPTS]
 
     def test_auto_does_not_retry_other_languages_on_a_real_failure(self, repo, ai_service):
         """
