@@ -322,7 +322,10 @@ def _complete_english(prefix: str) -> list[str]:
 
 
 def _pick_suggestions(
-    term: str, candidates: list[str], min_similarity: float | None = None
+    term: str,
+    candidates: list[str],
+    min_similarity: float | None = None,
+    limit: int = MAX_SUGGESTIONS,
 ) -> list[str]:
     """
     Adaylardan öneri listesi kurar: sorgunun kendisini ve yinelenenleri atar,
@@ -355,7 +358,7 @@ def _pick_suggestions(
         )
         if similar:
             out.append(_capitalize(candidate.strip()))
-        if len(out) >= MAX_SUGGESTIONS:
+        if len(out) >= limit:
             break
 
     return out
@@ -443,7 +446,14 @@ class OpenDictionaryService:
 
         Yazım varyantları sırayla denenir (bkz. _term_variants): Wiktionary
         büyük/küçük harfe ve aksana duyarlı — "Tahanan" 404 verirken "tahanan",
-        "Café" 404 verirken "cafe" bulunabiliyor. İlk geçerli yanıtta durulur.
+        "Café" 404 verirken "cafe" bulunabiliyor.
+
+        İlk dönen sayfada DURULMAZ, desteklenen bir dil içeren ilk sayfa yeğlenir:
+        aynı yazımın farklı biçimleri ayrı sayfalar olabiliyor ("Barang" tanımsız
+        bir özel ad sayfasıyken "barang" İngilizce "kara büyü" tanımını içeriyor).
+        Boş büyük-harf sayfası küçük-harf sayfasını gölgeleyip geçerli kelimeyi
+        haksız yere "bulunamadı" yapıyordu. Hiçbir varyant desteklenen dil
+        içermezse ilk geçerli sayfa yedek tutulur (algılama betik ipucuna düşer).
         """
         if term in self._page_cache:
             return self._page_cache[term]
@@ -451,7 +461,11 @@ class OpenDictionaryService:
         result: dict | None = None
         for variant in _term_variants(term):
             data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(variant)))
-            if isinstance(data, dict):
+            if not isinstance(data, dict):
+                continue
+            if result is None:
+                result = data
+            if any(code in SUPPORTED_LANGUAGES for code in data):
                 result = data
                 break
 
@@ -483,6 +497,27 @@ class OpenDictionaryService:
                     definitions.append(text)
 
         return {"definitions": definitions, "part_of_speech": part_of_speech}
+
+    def _has_addable_content(self, term: str) -> bool:
+        """
+        Terim, desteklenen bir dilde en az bir tanıma sahip mi?
+
+        Öneri süzmede kullanılır: öneri kaynakları (Datamuse/Wiktionary opensearch)
+        içerik üretiminden bağımsız çalışıyor ve eklenemeyecek kelimeler (yalnızca
+        desteklenmeyen bir dilde olan ya da tanımsız sayfalar) önerebiliyordu.
+        Sayfa örnek önbelleğinden paylaşıldığı için, öneri tıklanırsa yeniden
+        çekilmez.
+        """
+        page = self._fetch_page(term)
+        if not isinstance(page, dict):
+            return False
+        for code, entries in page.items():
+            if code not in SUPPORTED_LANGUAGES:
+                continue
+            for entry in entries or []:
+                if any(d.get("definition") for d in entry.get("definitions", [])):
+                    return True
+        return False
 
     def detect_languages(self, term: str) -> list[str]:
         """
@@ -551,9 +586,21 @@ class OpenDictionaryService:
         if not candidates:
             candidates = _suggest_wiktionary(term)
 
-        suggestions = _pick_suggestions(term, candidates, MIN_SIMILARITY)
-        logger.info("'%s' için %d düzeltme önerisi", term, len(suggestions))
-        return suggestions
+        # Önce benzerlikten geçmiş, tekrarsız daha geniş bir havuz kur; sonra
+        # yalnızca gerçekten eklenebilenleri (desteklenen dilde tanımı olanları)
+        # ilk MAX_SUGGESTIONS'a kadar tut. Süzme her aday için bir Wiktionary
+        # isteği demek; yalnızca hata sonrası "düzeltme" yolunda yapılır (yazarken
+        # tamamlamada değil), çünkü kullanıcı zaten durmuş, alternatif arıyor.
+        pool = _pick_suggestions(term, candidates, MIN_SIMILARITY, limit=SUGGESTION_POOL)
+        addable: list[str] = []
+        for candidate in pool:
+            if self._has_addable_content(candidate):
+                addable.append(candidate)
+                if len(addable) >= MAX_SUGGESTIONS:
+                    break
+
+        logger.info("'%s' için %d/%d öneri eklenebilir", term, len(addable), len(pool))
+        return addable
 
     def complete_terms(self, prefix: str, language: str = "en") -> list[str]:
         """

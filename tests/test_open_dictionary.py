@@ -196,6 +196,17 @@ def _datamuse(routes, *, sl: list[str], sp: list[str]) -> None:
     routes["datamuse"] = respond
 
 
+def _all_addable(routes) -> None:
+    """
+    Her adayın Wiktionary sayfasını 'eklenebilir' (desteklenen dilde tanımlı) yapar.
+
+    suggest_terms artık her adayın gerçekten eklenebildiğini doğruluyor; süzme
+    testin asıl konusu değilse (sıralama/tekilleştirme/sınır) adaylar bu route
+    ile eklenebilir sayılır.
+    """
+    routes["definition"] = {"en": [{"definitions": [{"definition": "x"}]}]}
+
+
 def test_suggestions_prefer_source_order_over_string_similarity(service, fake_network):
     """
     Kaynağın alaka sıralaması korunmalı.
@@ -209,6 +220,7 @@ def test_suggestions_prefer_source_order_over_string_similarity(service, fake_ne
         sl=["freind", "friend", "freund"],
         sp=["freind", "frind", "feind"],
     )
+    _all_addable(fake_network)
 
     assert service.suggest_terms("freind", "en")[0] == "Friend"
 
@@ -216,6 +228,7 @@ def test_suggestions_prefer_source_order_over_string_similarity(service, fake_ne
 def test_suggestions_exclude_the_query_itself(service, fake_network):
     """Datamuse sözlüğünde yanlış yazımlar da var; sorgunun kendisi öneri değil."""
     _datamuse(fake_network, sl=["recieve", "receive"], sp=["recieve"])
+    _all_addable(fake_network)
 
     suggestions = service.suggest_terms("recieve", "en")
 
@@ -233,13 +246,41 @@ def test_suggestions_drop_unrelated_words(service, fake_network):
 def test_suggestions_are_capped(service, fake_network):
     """Arayüzü boğmamak için öneri sayısı sınırlı."""
     _datamuse(fake_network, sl=[f"receiv{i}" for i in range(20)], sp=[])
+    _all_addable(fake_network)
 
     assert len(service.suggest_terms("recieve", "en")) <= od.MAX_SUGGESTIONS
+
+
+def test_unaddable_suggestions_are_filtered_out(service, fake_network):
+    """
+    Eklenemeyen öneri gösterilmemeli.
+
+    Öneri kaynağı (Datamuse) içerik üretiminden bağımsız çalışıyor: yazımca yakın
+    ama hiçbir desteklenen dilde tanımı olmayan bir kelime öneriliyor, kullanıcı
+    seçince "bulunamadı" görüyordu.
+    """
+    _datamuse(fake_network, sl=["receive", "recieves"], sp=[])
+    fake_network["definition/receive"] = {"en": [{"definitions": [{"definition": "almak"}]}]}
+    # "recieves" için eklenebilir sayfa yok → önerilmemeli.
+
+    suggestions = service.suggest_terms("recieve", "en")
+
+    assert "Receive" in suggestions
+    assert "Recieves" not in suggestions
+
+
+def test_all_unaddable_suggestions_yield_empty(service, fake_network):
+    """Hiçbir öneri eklenemiyorsa liste boş döner (yanıltıcı öneri gösterilmez)."""
+    _datamuse(fake_network, sl=["receive", "recieves"], sp=[])
+    # Hiçbiri için eklenebilir sayfa yok.
+
+    assert service.suggest_terms("recieve", "en") == []
 
 
 def test_non_english_suggestions_use_wiktionary(service, fake_network):
     """Datamuse yalnızca İngilizce; diğer diller opensearch'e düşer."""
     fake_network["api.php"] = ["Haus", ["Hause", "Hauser", "Haustier"], [], []]
+    _all_addable(fake_network)
 
     suggestions = service.suggest_terms("Haus", "de")
 
@@ -303,6 +344,7 @@ def test_non_english_completion_uses_wiktionary(service, fake_network):
 def test_suggestions_are_capitalized(service, fake_network):
     """Öneriler baş harfi büyük gösterilir (kullanıcı tercihi)."""
     _datamuse(fake_network, sl=["receive", "relieve"], sp=[])
+    _all_addable(fake_network)
 
     assert service.suggest_terms("recieve", "en") == ["Receive", "Relieve"]
 
@@ -499,6 +541,25 @@ def test_variants_stop_at_first_hit(service, fake_network):
     service.detect_languages("café")
 
     assert calls == [1]  # "café" ilk varyantta bulundu, "cafe" denenmedi
+
+
+def test_fetch_prefers_the_page_with_a_supported_language(service, fake_network):
+    """
+    Desteklenen dil içermeyen bir sayfa, içeren sayfayı gölgelememeli.
+
+    Gerçek vaka: "Barang" (büyük B) tanımsız bir özel ad sayfası, "barang" (küçük
+    b) ise İngilizce "kara büyü" tanımını içeriyor. İlk sayfada durulduğu için
+    geçerli kelime haksız yere "bulunamadı" oluyordu.
+    """
+    fake_network["definition/Barang"] = {"other": [{"definitions": [{"definition": "yer adı"}]}]}
+    fake_network["definition/barang"] = {
+        "en": [{"partOfSpeech": "Noun", "definitions": [{"definition": "black magic"}]}]
+    }
+    fake_network["mymemory"] = None  # çeviri yok → özgün metne düşer
+
+    assert service.detect_languages("Barang") == ["en"]
+    data = service.generate_word_data("Barang", "en")
+    assert data["definition_short"] == "black magic"
 
 
 def test_suggestion_network_failure_returns_empty(service, fake_network):
