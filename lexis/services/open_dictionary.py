@@ -320,38 +320,21 @@ def _complete_english(prefix: str) -> list[str]:
     return [d["word"] for d in data if isinstance(d, dict) and d.get("word")]
 
 
-def _dedupe_excluding_query(term: str, candidates: list[str]) -> list[str]:
+def _pick_suggestions(
+    term: str, candidates: list[str], min_similarity: float | None = None
+) -> list[str]:
     """
-    Sorgunun kendisini ve yinelenenleri atar; kaynağın sıralamasını korur.
+    Adaylardan öneri listesi kurar: sorgunun kendisini ve yinelenenleri atar,
+    kaynağın alaka sıralamasını korur, baş harfi büyütür.
 
-    Tamamlamada benzerlik eşiği uygulanmaz: tamamlanan kelime doğal olarak
-    yazılandan uzun ve eşik onları yanlışlıkla eliyor (ölçüldü: "ephem" →
-    "ephemerality" oranı 0.59, yani geçerli bir tamamlama elenirdi).
-    """
-    key = term.strip().casefold()
-    out: list[str] = []
-    seen: set[str] = set()
+    min_similarity verilirse benzerlik bir *filtre* olarak uygulanır, sıralama
+    ölçütü değil ("şunu mu demek istediniz?" düzeltmeleri): benzerliğe göre
+    yeniden sıralamayı ölçtüm, daha kötüydü — "freind" için harfçe yakın ama
+    uydurma "frind"/"feind", gerçek düzeltme "friend"i ilk beşin dışına itiyordu.
 
-    for candidate in candidates:
-        c_key = candidate.strip().casefold()
-        if not c_key or c_key == key or c_key in seen:
-            continue
-        seen.add(c_key)
-        out.append(_capitalize(candidate.strip()))
-        if len(out) >= MAX_SUGGESTIONS:
-            break
-
-    return out
-
-
-def _filter_suggestions(term: str, candidates: list[str]) -> list[str]:
-    """
-    Alakasız adayları eler; kaynağın alaka sıralamasını korur.
-
-    Benzerlik burada bilinçli olarak *filtre*, sıralama ölçütü değil. Benzerliğe
-    göre yeniden sıralamayı denedim ve ölçtüm: daha kötü sonuç veriyor, çünkü
-    "freind" için uydurma ama harfçe yakın "frind"/"feind" gerçek düzeltme olan
-    "friend"i ilk beşin dışına itiyordu. Kaynakların kendi sıralaması daha iyi.
+    Tamamlamada (min_similarity=None) eşik uygulanmaz: tamamlanan kelime yazılandan
+    uzun olduğu için oran düşük çıkıyor (ölçüldü: "ephem" → "ephemerality" 0.59) ve
+    geçerli bir tamamlama elenirdi.
 
     Kelimenin kendisi öneri değildir: Datamuse sözlüğünde yanlış yazımlar da
     bulunduğu için sorgunun kendisi sonuçlarda dönebiliyor.
@@ -365,7 +348,11 @@ def _filter_suggestions(term: str, candidates: list[str]) -> list[str]:
         if not c_key or c_key == key or c_key in seen:
             continue
         seen.add(c_key)
-        if difflib.SequenceMatcher(None, key, c_key).ratio() >= MIN_SIMILARITY:
+        similar = (
+            min_similarity is None
+            or difflib.SequenceMatcher(None, key, c_key).ratio() >= min_similarity
+        )
+        if similar:
             out.append(_capitalize(candidate.strip()))
         if len(out) >= MAX_SUGGESTIONS:
             break
@@ -563,7 +550,7 @@ class OpenDictionaryService:
         if not candidates:
             candidates = _suggest_wiktionary(term)
 
-        suggestions = _filter_suggestions(term, candidates)
+        suggestions = _pick_suggestions(term, candidates, MIN_SIMILARITY)
         logger.info("'%s' için %d düzeltme önerisi", term, len(suggestions))
         return suggestions
 
@@ -584,7 +571,7 @@ class OpenDictionaryService:
         candidates = (
             _complete_english(prefix) if language == RICH_LANGUAGE else _suggest_wiktionary(prefix)
         )
-        return _dedupe_excluding_query(prefix, candidates)
+        return _pick_suggestions(prefix, candidates)
 
     def generate_word_data(self, term: str, language: str = "en") -> dict:
         """

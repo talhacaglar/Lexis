@@ -373,52 +373,49 @@ class WordRepository:
 
     @_wrap_db_errors("İstatistikler okunamadı")
     def get_stats(self) -> WordStats:
-        """Genel istatistikleri döndürür."""
+        """
+        Genel istatistikleri döndürür.
+
+        Tüm sayımlar tek sorguda, koşullu toplamayla alınır: dashboard ve ayarlar
+        her açılışta çağırıyordu ve önceki hâl ~10 ayrı COUNT taraması yapıyordu.
+        SQLite'ta bir koşul 0/1 döndürür, SUM(koşul) sayımı verir; boş tabloda
+        SUM NULL olacağından COALESCE ile 0'a çekilir. NULL bir alan üzerindeki
+        koşul (ör. last_reviewed_at) NULL/0 verir, SUM'a katkısı olmaz — bu da
+        eski "WHERE ... IS NOT NULL AND ..." COUNT'larıyla aynı sonucu verir.
+        """
         day_start, day_end = _local_day_bounds_utc()
         now = utcnow().isoformat()
         with self._db.connection() as conn:
-            total = conn.execute("SELECT COUNT(*) FROM words").fetchone()[0]
-            new = conn.execute("SELECT COUNT(*) FROM words WHERE status = 'new'").fetchone()[0]
-            learning = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE status = 'learning'"
-            ).fetchone()[0]
-            learned = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE status = 'learned'"
-            ).fetchone()[0]
-            needs_review = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE status = 'needs_review'"
-            ).fetchone()[0]
-            favorites = conn.execute("SELECT COUNT(*) FROM words WHERE is_favorite = 1").fetchone()[
-                0
-            ]
-            added_today = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE created_at >= ? AND created_at < ?",
-                (day_start, day_end),
-            ).fetchone()[0]
-            reviewed_today = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE last_reviewed_at >= ? AND last_reviewed_at < ?",
-                (day_start, day_end),
-            ).fetchone()[0]
-            # Yalnızca planlanmış tekrarlar; hiç çalışılmamışlar ayrı sayılır.
-            due_today = conn.execute(
-                "SELECT COUNT(*) FROM words WHERE due_at IS NOT NULL AND due_at <= ?",
-                (now,),
-            ).fetchone()[0]
-            unreviewed = conn.execute("SELECT COUNT(*) FROM words WHERE due_at IS NULL").fetchone()[
-                0
-            ]
+            row = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    COALESCE(SUM(status = 'new'), 0) AS new,
+                    COALESCE(SUM(status = 'learning'), 0) AS learning,
+                    COALESCE(SUM(status = 'learned'), 0) AS learned,
+                    COALESCE(SUM(status = 'needs_review'), 0) AS needs_review,
+                    COALESCE(SUM(is_favorite = 1), 0) AS favorites,
+                    COALESCE(SUM(created_at >= ? AND created_at < ?), 0) AS added_today,
+                    COALESCE(SUM(last_reviewed_at >= ? AND last_reviewed_at < ?), 0)
+                        AS reviewed_today,
+                    COALESCE(SUM(due_at IS NOT NULL AND due_at <= ?), 0) AS due_today,
+                    COALESCE(SUM(due_at IS NULL), 0) AS unreviewed
+                FROM words
+                """,
+                (day_start, day_end, day_start, day_end, now),
+            ).fetchone()
 
         return WordStats(
-            total=total,
-            new=new,
-            learning=learning,
-            learned=learned,
-            needs_review=needs_review,
-            favorites=favorites,
-            added_today=added_today,
-            reviewed_today=reviewed_today,
-            due_today=due_today,
-            unreviewed=unreviewed,
+            total=row["total"],
+            new=row["new"],
+            learning=row["learning"],
+            learned=row["learned"],
+            needs_review=row["needs_review"],
+            favorites=row["favorites"],
+            added_today=row["added_today"],
+            reviewed_today=row["reviewed_today"],
+            due_today=row["due_today"],
+            unreviewed=row["unreviewed"],
         )
 
     # ── Tekrar geçmişi ────────────────────────────────────────────────────
