@@ -5,7 +5,7 @@ Lexis — Tests: Word Service
 import pytest
 
 from lexis.domain.exceptions import ContentProviderError, DuplicateWordError
-from lexis.domain.models import WordStatus
+from lexis.domain.models import Word, WordStatus
 from lexis.services.word_service import MAX_AI_LANGUAGE_ATTEMPTS, WordService
 
 
@@ -242,6 +242,57 @@ class TestContentProviderSelection:
         saved = service.get_by_id(word.id)
         assert saved.phonetic == "/təst/"
         assert saved.audio_url == "https://example.org/a.mp3"
+
+
+class TestLibraryLanguagePrior:
+    """
+    Çok dilli kelimede kullanıcının en çok çalıştığı dil öne alınır.
+
+    İngilizce baştaysa yerinde kalır: telaffuz/ses veren tek zengin kaynağa
+    bağlı olma avantajı bozulmamalı.
+    """
+
+    def test_frequent_language_moves_up_but_english_stays_first(self, repo, ai_service):
+        repo.create(Word(term="Haus", language="de"))
+        repo.create(Word(term="gehen", language="de"))
+        provider = _LanguageAwareProvider(known={})
+        provider.candidates = ["en", "fr", "de"]
+        service = WordService(repo, ai_service, open_dictionary=provider)
+
+        # de kütüphanede baskın → fr'nin önüne; en zengin kaynak olarak başta.
+        assert service.detect_languages("x") == ["en", "de", "fr"]
+
+    def test_prior_reorders_when_no_english(self, repo, ai_service):
+        repo.create(Word(term="Haus", language="de"))
+        provider = _LanguageAwareProvider(known={})
+        provider.candidates = ["fr", "de"]
+        service = WordService(repo, ai_service, open_dictionary=provider)
+
+        assert service.detect_languages("x") == ["de", "fr"]
+
+    def test_empty_library_keeps_original_order(self, repo, ai_service):
+        provider = _LanguageAwareProvider(known={})
+        provider.candidates = ["en", "fr", "de"]
+        service = WordService(repo, ai_service, open_dictionary=provider)
+
+        assert service.detect_languages("x") == ["en", "fr", "de"]
+
+    def test_single_candidate_skips_the_prior(self, repo, ai_service):
+        repo.create(Word(term="Haus", language="de"))
+        provider = _LanguageAwareProvider(known={})
+        provider.candidates = ["ru"]
+        service = WordService(repo, ai_service, open_dictionary=provider)
+
+        assert service.detect_languages("хлеб") == ["ru"]
+
+    def test_detect_language_singular_uses_the_prior(self, repo, ai_service):
+        """Tekil detect_language de önseli görmeli (İngilizcesiz, çok aday)."""
+        repo.create(Word(term="Haus", language="de"))
+        provider = _LanguageAwareProvider(known={})
+        provider.candidates = ["fr", "de"]
+        service = WordService(repo, ai_service, open_dictionary=provider)
+
+        assert service.detect_language("x") == "de"
 
 
 class TestApplyContent:

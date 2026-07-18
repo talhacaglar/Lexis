@@ -356,6 +356,21 @@ class WordRepository:
             all_tags.update(tags)
         return sorted(all_tags)
 
+    @_wrap_db_errors("Dil dağılımı okunamadı")
+    def get_language_counts(self) -> dict[str, int]:
+        """
+        Dil koduna göre kelime sayısı (kütüphane dil dağılımı).
+
+        Dil algılamada aday sıralamasına hafif önsel olarak kullanılır:
+        kullanıcının en çok çalıştığı dil çok dilli kelimede öne alınır.
+        idx_words_language indeksiyle örtüşür.
+        """
+        with self._db.connection() as conn:
+            rows = conn.execute(
+                "SELECT language, COUNT(*) AS c FROM words GROUP BY language"
+            ).fetchall()
+        return {row["language"]: row["c"] for row in rows}
+
     @_wrap_db_errors("İstatistikler okunamadı")
     def get_stats(self) -> WordStats:
         """Genel istatistikleri döndürür."""

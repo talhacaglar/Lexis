@@ -13,7 +13,7 @@ from lexis.domain.exceptions import ContentProviderError, DuplicateWordError
 from lexis.domain.models import SUPPORTED_LANGUAGES, ReviewGrade, Word, WordStats, WordStatus
 from lexis.persistence.word_repository import WordRepository
 from lexis.services.ai_service import AIService
-from lexis.services.open_dictionary import OpenDictionaryService
+from lexis.services.open_dictionary import RICH_LANGUAGE, OpenDictionaryService
 
 logger = logging.getLogger(__name__)
 
@@ -316,12 +316,27 @@ class WordService:
 
         Gemini anahtarı olsa da açık sözlüğe sorulur: tahmin için üretken bir
         modele para/kota harcamanın anlamı yok.
+
+        Açık sözlüğün sırasına kütüphane dil dağılımı hafif bir önsel olarak
+        katılır: çok dilli bir kelimede kullanıcının en çok çalıştığı dil öne
+        alınır. İngilizce baştaysa yerinde bırakılır — telaffuz/ses veren tek
+        zengin kaynağa bağlı olma avantajı korunur (bkz. OpenDictionaryService).
         """
-        return self._open_dict.detect_languages(term)
+        candidates = self._open_dict.detect_languages(term)
+        if len(candidates) < 2:
+            return candidates
+
+        counts = self._repo.get_language_counts()
+        # İngilizce başta ise sabit; yalnızca gerisi kullanıcının dağılımına göre
+        # yeniden sıralanır. sorted kararlıdır: eşit sayımda özgün sıra korunur,
+        # boş kütüphanede hiçbir şey değişmez.
+        head = candidates[:1] if candidates[0] == RICH_LANGUAGE else []
+        rest = sorted(candidates[len(head) :], key=lambda code: counts.get(code, 0), reverse=True)
+        return head + rest
 
     def detect_language(self, term: str) -> str:
         """En olası tek dili döndürür (bkz. detect_languages)."""
-        return self._open_dict.detect_language(term)
+        return self.detect_languages(term)[0]
 
     def configure_ai(self, api_key: str | None) -> None:
         """

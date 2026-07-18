@@ -93,6 +93,23 @@ class TestWordRepositoryRead:
         assert stats.learned == 1
         assert stats.new == 1
 
+    def test_get_stats_on_empty_db(self, repo: WordRepository):
+        """Boş kütüphanede tüm sayımlar 0 olmalı (SUM(...) NULL değil)."""
+        stats = repo.get_stats()
+        assert stats.total == 0
+        assert stats.new == 0
+        assert stats.favorites == 0
+        assert stats.unreviewed == 0
+
+    def test_get_language_counts(self, repo: WordRepository):
+        repo.create(Word(term="Haus", language="de"))
+        repo.create(Word(term="gehen", language="de"))
+        repo.create(Word(term="ephemeral", language="en"))
+        assert repo.get_language_counts() == {"de": 2, "en": 1}
+
+    def test_get_language_counts_empty(self, repo: WordRepository):
+        assert repo.get_language_counts() == {}
+
 
 class TestWordRepositoryUpdate:
     def test_update_changes_status(self, repo: WordRepository, sample_word: Word):
