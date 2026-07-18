@@ -20,6 +20,7 @@ from __future__ import annotations
 import difflib
 import json
 import logging
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -102,6 +103,26 @@ def _get_json(url: str, params: dict | None = None) -> object:
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
         logger.info("Kaynak yanıt vermedi (%s): %s", url.split("?")[0], e)
         return None
+
+
+def _strip_diacritics(text: str) -> str:
+    """Aksanları kaldırır ('café' → 'cafe'); kullanıcı aksansız yazmış olabilir."""
+    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+
+
+def _term_variants(term: str):
+    """
+    Wiktionary'de denenecek yazım varyantlarını sırayla, tekrarsız üretir.
+
+    Wiktionary büyük/küçük harfe duyarlı ve aksana bağlı: kullanıcı "Tahanan"
+    ya da "cafe" yazdığında sayfa "tahanan"/"café" altında olabilir. ASCII ve
+    küçük harfli bir terimde liste tek elemana iner — gereksiz istek olmaz.
+    """
+    seen: set[str] = set()
+    for variant in (term, term.lower(), _strip_diacritics(term), _strip_diacritics(term).lower()):
+        if variant and variant not in seen:
+            seen.add(variant)
+            yield variant
 
 
 MIN_TRANSLATION_MATCH = 0.5
@@ -383,6 +404,31 @@ _TATOEBA_LANGS = {
 }
 
 
+def _script_hint(term: str) -> list[str]:
+    """
+    Latin dışı alfabelerden ağa çıkmadan dil adayı çıkarır.
+
+    Kiril/Hangul/Arap/Kana kesin sinyaldir: bu betikteki bir kelime İngilizce
+    olamaz. Ağ düştüğünde ya da Wiktionary kaydı olmadığında kör "en" yerine
+    doğru dile düşmeyi sağlar. Han (CJK) Çince ve Japoncada ortak olduğundan iki
+    aday döner. Latin metinde ayırt edici sinyal yok → boş liste.
+    """
+    has_han = False
+    for ch in term:
+        code = ord(ch)
+        if 0x3040 <= code <= 0x30FF:  # Hiragana/Katakana → kesin Japonca
+            return ["ja"]
+        if 0x0400 <= code <= 0x04FF:  # Kiril
+            return ["ru"]
+        if 0x0600 <= code <= 0x06FF:  # Arap
+            return ["ar"]
+        if 0xAC00 <= code <= 0xD7A3 or 0x1100 <= code <= 0x11FF:  # Hangul (hece + Jamo)
+            return ["ko"]
+        if 0x4E00 <= code <= 0x9FFF:  # CJK Han (Çince/Japonca ortak)
+            has_han = True
+    return ["zh", "ja"] if has_han else []
+
+
 class OpenDictionaryService:
     """
     Anahtar gerektirmeyen içerik sağlayıcı.
@@ -405,18 +451,22 @@ class OpenDictionaryService:
 
     def _fetch_page(self, term: str) -> dict | None:
         """
-        Terimin Wiktionary sayfasını çeker; önce yazıldığı gibi, olmazsa küçük
-        harfle. Wiktionary büyük/küçük harfe duyarlı: "Tahanan" 404 verirken
-        "tahanan" bulunuyor — kullanıcı bu yüzden haksız "bulunamadı" görüyordu.
+        Terimin Wiktionary sayfasını çeker ve önbelleğe alır.
+
+        Yazım varyantları sırayla denenir (bkz. _term_variants): Wiktionary
+        büyük/küçük harfe ve aksana duyarlı — "Tahanan" 404 verirken "tahanan",
+        "cafe" ararken "café" bulunabiliyor. İlk geçerli yanıtta durulur.
         """
         if term in self._page_cache:
             return self._page_cache[term]
 
-        data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(term)))
-        if not isinstance(data, dict) and term.lower() != term:
-            data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(term.lower())))
+        result: dict | None = None
+        for variant in _term_variants(term):
+            data = _get_json(WIKTIONARY_API.format(term=urllib.parse.quote(variant)))
+            if isinstance(data, dict):
+                result = data
+                break
 
-        result = data if isinstance(data, dict) else None
         self._page_cache[term] = result
         return result
 
@@ -455,25 +505,38 @@ class OpenDictionaryService:
         'tr'] veriyor; İngilizce'de soyadı, Lehçe'de "koç" demek). Çağıran
         adayları sırayla deneyip ilk tutanı kullanır, ilk tahminde pes etmez.
 
-        İngilizce başa alınır: hem en olası kullanım, hem de telaffuz ve ses
-        veren tek zengin kaynağa (dictionaryapi.dev) bağlanıyor. Yanlışsa bedeli
-        yalnızca bir deneme.
+        Latin dışı alfabeler (Kiril/Hangul/Arap/Kana/Han) ağa çıkmadan kesin
+        sinyal verir (bkz. _script_hint): ağ düşse ya da Wiktionary bulamasa bile
+        doğru dile düşülür, kör "en" yerine.
+
+        İngilizce Latin kelimelerde başa alınır: hem en olası kullanım, hem de
+        telaffuz ve ses veren tek zengin kaynağa (dictionaryapi.dev) bağlanıyor.
+        Yanlışsa bedeli yalnızca bir deneme.
         """
         term = term.strip()
         if not term:
             return [RICH_LANGUAGE]
 
+        hint = _script_hint(term)
         data = self._fetch_page(term)
         if data is None:
-            return [RICH_LANGUAGE]
+            # Ağ düştü ya da kayıt yok: betik ipucu varsa kör "en" yerine onu kullan.
+            return hint or [RICH_LANGUAGE]
 
         found = [code for code in data if code in SUPPORTED_LANGUAGES]
         if not found:
-            return [RICH_LANGUAGE]
+            return hint or [RICH_LANGUAGE]
 
-        # İngilizce öne; gerisi Wiktionary'nin kendi sırasında kalır. Kasıtlı
-        # olarak kesilmez: sayfa önbelleği sayesinde ek aday ek ağ maliyeti
-        # getirmiyor (Gemini'nin ücretli denemelerini WordService sınırlar).
+        if hint:
+            # Latin dışı kesin sinyal: betik dilleri öne. Wiktionary başka diller
+            # de listelese (ör. transliterasyon kaydı) onlar geride kalır.
+            found.sort(key=lambda code: hint.index(code) if code in hint else len(hint))
+            logger.info("'%s' için dil adayları (betik): %s", term, found)
+            return found
+
+        # Latin: İngilizce öne; gerisi Wiktionary sırasında. Kasıtlı olarak
+        # kesilmez: sayfa önbelleği sayesinde ek aday ek ağ maliyeti getirmiyor
+        # (Gemini'nin ücretli denemelerini WordService sınırlar).
         found.sort(key=lambda code: code != RICH_LANGUAGE)
         logger.info("'%s' için dil adayları: %s", term, found)
         return found

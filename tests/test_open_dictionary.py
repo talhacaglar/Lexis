@@ -432,6 +432,75 @@ def test_detect_language_of_empty_term_makes_no_request(service, fake_network):
     assert calls == []
 
 
+# ── Alfabe/betik ipucu ──────────────────────────────────────────────────────
+
+
+def test_detect_languages_uses_script_when_offline(service, fake_network):
+    """
+    Ağ düşünce kör "en" değil, alfabeden çıkarılan dil.
+
+    Kiril bir kelime hiçbir koşulda İngilizce olamaz; ağ yokken bile "хлеб"
+    Rusça sayılmalı (route yok → _get_json None → sayfa alınamıyor).
+    """
+    assert service.detect_languages("хлеб") == ["ru"]
+
+
+def test_detect_languages_script_outranks_english(service, fake_network):
+    """
+    Latin dışı kesin sinyalde betik dili İngilizce'nin önüne geçer.
+
+    Wiktionary sayfası bir transliterasyon nedeniyle "en" bölümü içerse bile
+    Kiril kelime için Rusça ilk aday olmalı.
+    """
+    fake_network["definition"] = {"en": [{}], "ru": [{}]}
+
+    assert service.detect_languages("хлеб") == ["ru", "en"]
+
+
+def test_detect_languages_kana_is_japanese(service, fake_network):
+    """Kana (Hiragana/Katakana) kesin Japonca sinyalidir."""
+    assert service.detect_languages("たべる") == ["ja"]
+
+
+def test_detect_languages_han_is_chinese_then_japanese(service, fake_network):
+    """Han (CJK) Çince ve Japoncada ortak; ikisi de aday, Çince önce."""
+    assert service.detect_languages("中国") == ["zh", "ja"]
+
+
+def test_latin_word_ignores_script_hint(service, fake_network):
+    """Latin kelimede betik sinyali yok; mevcut 'İngilizce önce' kuralı işler."""
+    fake_network["definition"] = {"de": [{}], "en": [{}]}
+
+    assert service.detect_languages("Haus") == ["en", "de"]
+
+
+# ── Aksan normalleştirme ────────────────────────────────────────────────────
+
+
+def test_diacritic_variant_is_tried_when_exact_and_lowercase_miss(service, fake_network):
+    """
+    Wiktionary aksana duyarlı: "Français"/"français" ıskalarsa aksansız
+    "francais" denenir. Kullanıcı aksanı atlamış olabilir.
+    """
+    fake_network["definition/francais"] = {"fr": [{}]}
+
+    assert service.detect_languages("Français") == ["fr"]
+
+
+def test_variants_stop_at_first_hit(service, fake_network):
+    """İlk tutan varyanttan sonrası denenmez: gereksiz istek olmamalı."""
+    calls: list = []
+
+    def respond(params):
+        calls.append(1)
+        return {"fr": [{}]}
+
+    fake_network["definition"] = respond
+    service.detect_languages("café")
+
+    assert calls == [1]  # "café" ilk varyantta bulundu, "cafe" denenmedi
+
+
 def test_suggestion_network_failure_returns_empty(service, fake_network):
     """Öneri bir kolaylık: ağ düşerse kelime ekleme akışı bloklanmamalı."""
     assert service.suggest_terms("recieve", "en") == []
