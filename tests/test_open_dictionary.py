@@ -479,8 +479,8 @@ def test_latin_word_ignores_script_hint(service, fake_network):
 
 def test_diacritic_variant_is_tried_when_exact_and_lowercase_miss(service, fake_network):
     """
-    Wiktionary aksana duyarlı: "Français"/"français" ıskalarsa aksansız
-    "francais" denenir. Kullanıcı aksanı atlamış olabilir.
+    Wiktionary aksana duyarlı: aksanlı "Français"/"français" ıskalarsa aksansız
+    "francais" denenir — kaynak başlığı ASCII olabilir.
     """
     fake_network["definition/francais"] = {"fr": [{}]}
 

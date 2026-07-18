@@ -106,7 +106,7 @@ def _get_json(url: str, params: dict | None = None) -> object:
 
 
 def _strip_diacritics(text: str) -> str:
-    """Aksanları kaldırır ('café' → 'cafe'); kullanıcı aksansız yazmış olabilir."""
+    """Aksanları kaldırır ('café' → 'cafe'): aksanlı yazılan terimin ASCII karşılığı."""
     return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
 
 
@@ -114,8 +114,9 @@ def _term_variants(term: str):
     """
     Wiktionary'de denenecek yazım varyantlarını sırayla, tekrarsız üretir.
 
-    Wiktionary büyük/küçük harfe duyarlı ve aksana bağlı: kullanıcı "Tahanan"
-    ya da "cafe" yazdığında sayfa "tahanan"/"café" altında olabilir. ASCII ve
+    Wiktionary büyük/küçük harfe ve aksana duyarlı. Küçük harf denemesi baş harfi
+    büyük terimleri ("Tahanan" → "tahanan"), aksan temizleme ise aksanlı yazılıp
+    ASCII başlık altında bulunan terimleri ("Café" → "cafe") yakalar. ASCII ve
     küçük harfli bir terimde liste tek elemana iner — gereksiz istek olmaz.
     """
     seen: set[str] = set()
@@ -442,7 +443,7 @@ class OpenDictionaryService:
 
         Yazım varyantları sırayla denenir (bkz. _term_variants): Wiktionary
         büyük/küçük harfe ve aksana duyarlı — "Tahanan" 404 verirken "tahanan",
-        "cafe" ararken "café" bulunabiliyor. İlk geçerli yanıtta durulur.
+        "Café" 404 verirken "cafe" bulunabiliyor. İlk geçerli yanıtta durulur.
         """
         if term in self._page_cache:
             return self._page_cache[term]
