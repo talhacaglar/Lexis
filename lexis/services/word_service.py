@@ -327,10 +327,18 @@ class WordService:
             return candidates
 
         counts = self._repo.get_language_counts()
-        # İngilizce başta ise sabit; yalnızca gerisi kullanıcının dağılımına göre
-        # yeniden sıralanır. sorted kararlıdır: eşit sayımda özgün sıra korunur,
-        # boş kütüphanede hiçbir şey değişmez.
-        head = candidates[:1] if candidates[0] == RICH_LANGUAGE else []
+        # 0. konum, İngilizce adaylar arasındaysa sabit tutulur; yalnızca gerisi
+        # kullanıcının dağılımına göre yeniden sıralanır. Bu, "candidates[0] ==
+        # en" değil "en in candidates" ile kontrol edilir: OpenDictionaryService
+        # bazen İngilizce'yi bilinçli olarak geride bırakır (ör. "bonjour" gibi
+        # ödünç selamlarda asıl dil öne alınır) — o zaman 0. konum artık "en"
+        # değildir ama yine de korunmalı, yoksa İngilizce ağırlıklı bir
+        # kütüphanede kütüphane önceliği bu kararı sessizce geçersiz kılıp
+        # İngilizce'yi tekrar başa taşırdı. "en" aday listesinde hiç yoksa
+        # (İngilizce sözlük kaydı bulunamadı) sabitleme gereksiz, tüm liste
+        # serbestçe sıralanır. sorted kararlıdır: eşit sayımda özgün sıra
+        # korunur, boş kütüphanede hiçbir şey değişmez.
+        head = candidates[:1] if RICH_LANGUAGE in candidates else []
         rest = sorted(candidates[len(head) :], key=lambda code: counts.get(code, 0), reverse=True)
         return head + rest
 

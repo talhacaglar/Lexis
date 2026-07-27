@@ -543,6 +543,141 @@ def test_variants_stop_at_first_hit(service, fake_network):
     assert calls == [1]  # "café" ilk varyantta bulundu, "cafe" denenmedi
 
 
+# ── Ödünç selam/ünlem kayıtları ──────────────────────────────────────────────
+
+
+def test_detect_languages_promotes_loanword_over_thin_english_gloss(service, fake_network):
+    """
+    "bonjour" gibi ödünç selamlar en bölümünde ince aktarma kaydı olarak da
+    görünür; asıl dildeki zengin kayıt öne alınmalı.
+    """
+    fake_network["definition"] = {
+        "en": [
+            {
+                "partOfSpeech": "Interjection",
+                "definitions": [{"definition": "Good morning; hello."}],
+            },
+            {
+                "partOfSpeech": "Verb",
+                "definitions": [{"definition": "To greet in French with bonjour."}],
+            },
+        ],
+        "fr": [
+            {"partOfSpeech": "Noun", "definitions": [{"definition": "a"}, {"definition": "b"}]},
+            {"partOfSpeech": "Interjection", "definitions": [{"definition": "c"}]},
+        ],
+    }
+
+    assert service.detect_languages("Bonjour") == ["fr", "en"]
+
+
+def test_detect_languages_keeps_english_first_when_first_sense_is_not_interjection(
+    service, fake_network
+):
+    """
+    "Baran" gibi vakalar regresyon olmamalı: en'in ilk kaydı gerçek bir
+    kullanım (Proper noun), pl sayıca daha zengin olsa bile en başta kalır.
+    """
+    fake_network["definition"] = {
+        "en": [
+            {
+                "partOfSpeech": "Proper noun",
+                "definitions": [{"definition": "a"}, {"definition": "b"}],
+            }
+        ],
+        "pl": [
+            {
+                "partOfSpeech": "Proper noun",
+                "definitions": [
+                    {"definition": "a"},
+                    {"definition": "b"},
+                    {"definition": "c"},
+                    {"definition": "d"},
+                    {"definition": "e"},
+                ],
+            }
+        ],
+    }
+
+    assert service.detect_languages("Baran") == ["en", "pl"]
+
+
+def test_detect_languages_excludes_romanization_only_candidate(service, fake_network):
+    """
+    "arigato" gibi vakalar: en Interjection tetikler ama ja bölümü yalnızca
+    içeriksiz bir Romanization göndermesi — bilinen kısıtlama, en başta kalır.
+    """
+    fake_network["definition"] = {
+        "en": [{"partOfSpeech": "Interjection", "definitions": [{"definition": "Thank you."}]}],
+        "ja": [
+            {
+                "partOfSpeech": "Romanization",
+                "definitions": [{"definition": "Rōmaji transcription of ありがと"}],
+            }
+        ],
+    }
+
+    assert service.detect_languages("arigato") == ["en", "ja"]
+
+
+def test_detect_languages_orders_multiple_promoted_candidates_by_definition_count(
+    service, fake_network
+):
+    """Birden çok aday tetiklenince aralarında tanım sayısına göre sıralanır."""
+    fake_network["definition"] = {
+        "en": [{"partOfSpeech": "Interjection", "definitions": [{"definition": "a"}]}],
+        "fr": [
+            {
+                "partOfSpeech": "Interjection",
+                "definitions": [{"definition": "a"}, {"definition": "b"}],
+            }
+        ],
+        "it": [
+            {
+                "partOfSpeech": "Interjection",
+                "definitions": [{"definition": "a"}, {"definition": "b"}, {"definition": "c"}],
+            }
+        ],
+    }
+
+    assert service.detect_languages("ciao") == ["it", "fr", "en"]
+
+
+def test_detect_languages_does_not_promote_candidate_with_fewer_definitions(service, fake_network):
+    """Aday, İngilizce'den daha az tanıma sahipse öne alınmaz."""
+    fake_network["definition"] = {
+        "en": [
+            {
+                "partOfSpeech": "Interjection",
+                "definitions": [{"definition": "a"}, {"definition": "b"}, {"definition": "c"}],
+            }
+        ],
+        "de": [{"partOfSpeech": "Interjection", "definitions": [{"definition": "a"}]}],
+    }
+
+    assert service.detect_languages("hallo") == ["en", "de"]
+
+
+def test_detect_languages_promotes_on_equal_definition_count(service, fake_network):
+    """Eşit tanım sayısında da öne alınır (kural >=, > değil)."""
+    fake_network["definition"] = {
+        "en": [
+            {
+                "partOfSpeech": "Interjection",
+                "definitions": [{"definition": "a"}, {"definition": "b"}],
+            }
+        ],
+        "es": [
+            {
+                "partOfSpeech": "Interjection",
+                "definitions": [{"definition": "a"}, {"definition": "b"}],
+            }
+        ],
+    }
+
+    assert service.detect_languages("hola") == ["es", "en"]
+
+
 def test_fetch_prefers_the_page_with_a_supported_language(service, fake_network):
     """
     Desteklenen dil içermeyen bir sayfa, içeren sayfayı gölgelememeli.

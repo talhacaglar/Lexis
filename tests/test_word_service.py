@@ -294,6 +294,25 @@ class TestLibraryLanguagePrior:
 
         assert service.detect_language("x") == "de"
 
+    def test_demoted_english_does_not_return_to_the_front(self, repo, ai_service):
+        """
+        Açık sözlüğün bilinçli olarak geride bıraktığı İngilizce, kütüphane
+        önceliğiyle tekrar başa dönmemeli.
+
+        Gerçek vaka: "bonjour" gibi ödünç selamlarda OpenDictionaryService
+        Fransızca'yı öne alıyor (ince İngilizce çeviri notuna karşı). Kullanıcının
+        kütüphanesinde Fransızcadan çok İngilizce kelime varsa, eski "yalnızca
+        candidates[0] == 'en' ise sabitle" kuralı bu kararı sessizce geçersiz
+        kılıp İngilizce'yi tekrar başa taşırdı.
+        """
+        for i in range(5):
+            repo.create(Word(term=f"word{i}", language="en"))
+        provider = _LanguageAwareProvider(known={})
+        provider.candidates = ["fr", "en"]  # açık sözlük zaten fr'yi öne almış
+        service = WordService(repo, ai_service, open_dictionary=provider)
+
+        assert service.detect_languages("Bonjour") == ["fr", "en"]
+
 
 class TestApplyContent:
     def test_missing_fields_keep_existing_values(self, word_service: WordService):

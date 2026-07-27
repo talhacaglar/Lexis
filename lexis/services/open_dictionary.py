@@ -420,6 +420,34 @@ def _script_hint(term: str) -> list[str]:
     return ["zh", "ja"] if has_han else []
 
 
+# Yalnızca çapraz referans/aktarma olup gerçek tanım taşımayan söz türleri.
+# Ölçüldü: "arigato" için ja bölümü partOfSpeech "Romanization" döndürüyor;
+# definition'ı "Rōmaji transcription of ありがと" — kendi anlamı değil, başka
+# bir başlığa yönlendirme. Yeni örnek çıkarsa genişletilir.
+_NON_CONTENT_POS = {"romanization"}
+_LOANWORD_POS = "interjection"
+
+
+def _first_part_of_speech(entries: list[dict]) -> str:
+    """Bir Wiktionary bölümünün ilk kaydındaki söz türü (küçük harf, boşsa "")."""
+    if not entries:
+        return ""
+    return (entries[0].get("partOfSpeech") or "").strip().lower()
+
+
+def _definition_count(entries: list[dict]) -> int:
+    """Bir Wiktionary bölümündeki tüm kayıtlar genelinde toplam tanım sayısı."""
+    return sum(len(entry.get("definitions") or []) for entry in entries)
+
+
+def _is_substantive(entries: list[dict]) -> bool:
+    """En az bir kaydı gerçek tanım mı (salt çapraz referans değil, bkz. _NON_CONTENT_POS)."""
+    return any(
+        (entry.get("partOfSpeech") or "").strip().lower() not in _NON_CONTENT_POS
+        for entry in entries
+    )
+
+
 class OpenDictionaryService:
     """
     Anahtar gerektirmeyen içerik sağlayıcı.
@@ -557,9 +585,35 @@ class OpenDictionaryService:
             logger.info("'%s' için dil adayları (betik): %s", term, found)
             return found
 
-        # Latin: İngilizce öne; gerisi Wiktionary sırasında. Kasıtlı olarak
-        # kesilmez: sayfa önbelleği sayesinde ek aday ek ağ maliyeti getirmiyor
-        # (Gemini'nin ücretli denemelerini WordService sınırlar).
+        # Latin: varsayılan İngilizce öne. İstisna: "en" bölümü bazen yabancı
+        # bir selamın/ünlemin ince aktarma kaydı olabilir ("bonjour" en:
+        # Interjection, "Good morning; hello." — asıl Fransızca kaydı çok daha
+        # zengin). Yalnızca İngilizce'nin İLK kaydı "Interjection" ise tetiklenir
+        # (ölçüldü: "Baran"ın ilk en kaydı "Proper noun" — hiç tetiklenmiyor).
+        # Tetiklenince, İngilizce'yle en az eşit tanımı olan VE gerçek içerik
+        # taşıyan (yalnızca "Romanization" göndermesi değil) bir aday öne alınır.
+        en_entries = data.get(RICH_LANGUAGE) or []
+        if _first_part_of_speech(en_entries) == _LOANWORD_POS:
+            en_count = _definition_count(en_entries)
+            preferred = sorted(
+                (
+                    code
+                    for code in found
+                    if code != RICH_LANGUAGE
+                    and _is_substantive(data.get(code) or [])
+                    and _definition_count(data.get(code) or []) >= en_count
+                ),
+                key=lambda code: _definition_count(data.get(code) or []),
+                reverse=True,
+            )
+            if preferred:
+                rest = [c for c in found if c != RICH_LANGUAGE and c not in preferred]
+                found = preferred + [RICH_LANGUAGE] + rest
+                logger.info("'%s' için dil adayları (ödünç selam): %s", term, found)
+                return found
+
+        # Kasıtlı olarak kesilmez: sayfa önbelleği sayesinde ek aday ek ağ
+        # maliyeti getirmiyor (Gemini'nin ücretli denemelerini WordService sınırlar).
         found.sort(key=lambda code: code != RICH_LANGUAGE)
         logger.info("'%s' için dil adayları: %s", term, found)
         return found
