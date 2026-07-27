@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+# PEP 639 lisans alanları (license = "MIT" + license-files) 77.0.3'te kararlı.
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +8,8 @@ name = "lexis"
 version = "0.1.0"
 description = "Kişisel Sözlük ve Kelime Öğrenme Uygulaması"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
     "PyQt6>=6.6.0",
@@ -23,6 +26,11 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.4.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/talhacaglar/Lexis"
+Repository = "https://github.com/talhacaglar/Lexis"
+Issues = "https://github.com/talhacaglar/Lexis/issues"
 
 [project.scripts]
 lexis = "lexis.main:main"

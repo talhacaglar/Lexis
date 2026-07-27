@@ -10,8 +10,31 @@
     <a href="https://aur.archlinux.org/packages/lexis-git">
       <img src="https://img.shields.io/badge/AUR-lexis--git-1793d1?style=flat-square&logo=arch-linux" alt="AUR Package" />
     </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/license-MIT-yellow?style=flat-square" alt="MIT License" />
+    </a>
   </p>
 </div>
+
+<br>
+
+> **English summary** — Lexis is a local-first desktop dictionary and vocabulary
+> trainer, built for Turkish speakers learning foreign languages. It works with
+> **no API key**: definitions, parts of speech, synonyms/antonyms, IPA and
+> pronunciation audio come from [dictionaryapi.dev](https://dictionaryapi.dev)
+> and Wiktionary, example sentences with translations from
+> [Tatoeba](https://tatoeba.org), and translation fallback from MyMemory — all
+> fetched with the Python standard library, no extra dependency. Everything you
+> save stays on your machine in SQLite (`~/.lexis/lexis.db`); nothing is synced
+> anywhere. Vocabulary review uses SM-2 spaced repetition. An optional Gemini
+> key gives more fluent Turkish phrasing, but nothing breaks without one.
+>
+> That constraint is deliberate: language tools for Turkish speakers are almost
+> all subscription apps or key-gated services, and a student who cannot pay for
+> one should still get a real dictionary entry rather than a generated guess.
+>
+> **Install:** `yay -S lexis-git` on Arch, or `pip install -e .` from a clone
+> (Python 3.10+, PyQt6). Full documentation below is in Turkish.
 
 <br>
 
@@ -70,8 +93,8 @@ Linux, macOS ve Windows üzerinde kaynak koddan çalıştırmak için:
 
 ```bash
 # Repoyu klonlayın
-git clone https://github.com/talhacaglar/lexis.git
-cd lexis
+git clone https://github.com/talhacaglar/Lexis.git
+cd Lexis
 
 # Sanal ortam oluşturun
 python -m venv .venv
@@ -167,8 +190,8 @@ Highlights:
 **Quick start**
 
 ```bash
-git clone https://github.com/talhacaglar/lexis.git
-cd lexis
+git clone https://github.com/talhacaglar/Lexis.git
+cd Lexis
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 lexis

@@ -40,3 +40,9 @@ packaging/aur/*.pkg.tar.zst
 # OS / editor
 .DS_Store
 *.swp
+
+# AI aracı çalışma alanları (kişisel, repoya girmemeli)
+.claude/
+.cline/
+.codex/
+memory-bank/
