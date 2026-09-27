@@ -6,7 +6,7 @@ QThread tabanlı arka plan işçisi. AI çağrıları sırasında UI'ı bloklama
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
 from lexis.services.ai_service import AIService
 
@@ -37,6 +37,21 @@ class AIGenerationWorker(QThread):
         self._ai_service = ai_service
         self._term = term
         self._language = language
+        if parent is not None:
+            parent.destroyed.connect(
+                self._wait_before_parent_deletion, Qt.ConnectionType.DirectConnection
+            )
+
+    def _wait_before_parent_deletion(self) -> None:
+        # QObject emits destroyed before it deletes child QThreads.
+        # Slow AI requests must finish before the owner frees this worker.
+        for signal in (self.finished, self.error, self.progress):
+            try:
+                signal.disconnect()
+            except TypeError:
+                pass
+        self.requestInterruption()
+        self.wait()
 
     def run(self) -> None:
         """QThread tarafından çağrılır. Ana thread'i bloklamaz."""
