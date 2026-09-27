@@ -12,7 +12,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,23 @@ class TaskWorker(QThread):
     def __init__(self, fn: Callable[[], Any], parent=None) -> None:
         super().__init__(parent)
         self._fn = fn
+        if parent is not None:
+            # QObject emits destroyed before deleting its children. A bounded
+            # closeEvent wait is insufficient for slow I/O and older workers
+            # whose UI reference was replaced by a newer request.
+            parent.destroyed.connect(
+                self._wait_before_parent_deletion, Qt.ConnectionType.DirectConnection
+            )
+
+    def _wait_before_parent_deletion(self) -> None:
+        # No result/cleanup callback may access an owner during destruction.
+        for signal in (self.succeeded, self.failed, self.finished):
+            try:
+                signal.disconnect()
+            except TypeError:
+                pass
+        self.requestInterruption()
+        self.wait()
 
     def run(self) -> None:
         try:
